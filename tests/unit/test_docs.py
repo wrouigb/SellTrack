@@ -86,14 +86,17 @@ def test_links_between_documents_work(document):
 def test_make_targets_mentioned_in_the_readme_exist():
     makefile = (ROOT / "Makefile").read_text()
     targets = set(re.findall(r"^([a-z-]+):", makefile, re.MULTILINE))
-    mentioned = set(re.findall(r"(?:^|`)make ([a-z-]+)", (ROOT / "README.md").read_text(), re.MULTILINE))
+    mentioned = set(
+        re.findall(r"(?:^|`)make ([a-z-]+)", (ROOT / "README.md").read_text(), re.MULTILINE)
+    )
     assert mentioned <= targets
 
 
 def test_every_setting_is_in_the_example_file():
     example = (ROOT / ".env.example").read_text()
     names = {name.upper() for name in Settings.model_fields}
-    assert not {name for name in names if not re.search(rf"^{name}=", example, re.MULTILINE)}
+    missing = {name for name in names if not re.search(rf"^{name}=", example, re.MULTILINE)}
+    assert not missing
 
 
 def test_every_setting_the_stack_uses_is_in_its_example_file():
