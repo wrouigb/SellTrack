@@ -94,8 +94,6 @@ jobs:
           load: true
           tags: selltrack-ci:ci
           build-args: REVISION=${{ github.sha }}
-          cache-from: type=gha,scope=amd64
-          cache-to: type=gha,scope=amd64,mode=max
       - name: Build the Nginx image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -104,16 +102,20 @@ jobs:
           load: true
           tags: selltrack-ci-nginx:ci
           build-args: REVISION=${{ github.sha }}
-          cache-from: type=gha,scope=amd64
       - name: Check the running stack
         run: scripts/ci_step.sh tests/stack_check.sh
+      # Only our own images. There's nothing we could do about a finding in Postgres's or Redis's,
+      # apart from waiting for their next release.
       - name: Look for known vulnerabilities in the images
         run: |
+          status=0
           for image in selltrack-ci:ci selltrack-ci-nginx:ci; do
             scripts/ci_step.sh docker run --rm \
               --volume /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.1 \
-              image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --scanners vuln "$image"
+              image --quiet --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --scanners vuln \
+              "$image" || status=1
           done
+          exit "$status"
 
   arm64:
     # A Raspberry Pi image that doesn't build would otherwise only show up after merging.
@@ -134,5 +136,3 @@ jobs:
           target: web
           platforms: linux/arm64
           build-args: REVISION=${{ github.sha }}
-          cache-from: type=gha,scope=arm64
-          cache-to: type=gha,scope=arm64,mode=max

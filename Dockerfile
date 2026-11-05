@@ -34,7 +34,14 @@ ENV APP_ENV=production \
     PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
-RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin selltrack
+# Security fixes from since the base image was built. Then out with what's only there for installing
+# things, because nothing here installs anything once it's built, and neither should an intruder.
+RUN apt-get update \
+    && apt-get upgrade --yes \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip uninstall --yes --root-user-action=ignore pip \
+    && rm -rf /usr/local/lib/python3.13/ensurepip \
+    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin selltrack
 WORKDIR /srv/selltrack
 COPY --from=dependencies /opt/venv /opt/venv
 COPY app ./app

@@ -7,7 +7,8 @@ log=$(mktemp)
 "$@" 2>&1 | tee "$log"
 status=${PIPESTATUS[0]}
 if [[ $status -ne 0 ]]; then
-    summary=$(tail -n 40 "$log" | sed -E 's/\x1b\[[0-9;]*m//g' | cut -c1-200)
+    # Only what can be read: no colours, and no lines that only draw a table's borders.
+    summary=$(sed -E 's/\x1b\[[0-9;]*m//g' "$log" | grep -vE '^[─┌┐└┘├┤┬┴┼│ ]*$' | tail -n 40 | cut -c1-200)
     summary=${summary//'%'/'%25'}
     summary=${summary//$'\r'/'%0D'}
     summary=${summary//$'\n'/'%0A'}
