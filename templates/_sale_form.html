@@ -1,0 +1,99 @@
+{# The sale form - used on the home page AND the edit page #}
+<form method="POST" action="{{ form_action }}" id="sale-form">
+
+    <div class="form-row">
+        <div>
+            <label for="date">Date</label>
+            <input type="date" name="date" id="date"
+                   value="{{ sale.sale_date.isoformat() if sale else today }}" required>
+        </div>
+        <div>
+            <label for="customer">Customer / notes</label>
+            <input type="text" name="customer" id="customer" placeholder="e.g. Sam"
+                   value="{{ sale.customer if sale else '' }}">
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div>
+            <label for="product">Product</label>
+            {% if sale %}
+                {# when editing, the product stays the same #}
+                <input type="text" id="product" value="{{ sale.product_name }}" readonly>
+            {% else %}
+                <select name="product_id" id="product" required>
+                    <option value="">Choose a product...</option>
+                    {% for p in products %}
+                    <option value="{{ p.id }}" data-cost="{{ p.cost }}"
+                            data-price="{{ p.sell_price if p.sell_price is not none else '' }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            {% endif %}
+        </div>
+        <div>
+            <label for="quantity">Quantity sold</label>
+            <input type="number" name="quantity" id="quantity" min="1" step="1" placeholder="1"
+                   value="{{ sale.quantity if sale else '' }}" required>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div>
+            <label for="cost_each">Cost per item ($)</label>
+            {# no name on this one - it is just for show. The cost comes from the Products page #}
+            <input type="number" id="cost_each" step="0.01" readonly class="auto-field"
+                   placeholder="auto"
+                   value="{{ '%.2f' % sale.cost_each if sale else '' }}">
+            <span class="hint">{{ 'Saved with this sale' if sale else 'Filled in from your Products page' }}</span>
+        </div>
+        <div>
+            <label for="price_paid">Price paid - total ($)</label>
+            <input type="number" name="price_paid" id="price_paid" min="0" step="0.01" placeholder="0.00"
+                   value="{{ '%.2f' % sale.price_paid if sale else '' }}" required>
+            {% if not sale %}<span class="hint">Auto-fills if the product has a selling price</span>{% endif %}
+        </div>
+    </div>
+
+    <p class="preview">Profit on this sale: <strong id="preview-profit">$0.00</strong></p>
+
+    <button type="submit">{{ button_text }}</button>
+</form>
+
+<script>
+    var product = document.getElementById("product");
+    var qty = document.getElementById("quantity");
+    var paid = document.getElementById("price_paid");
+    var cost = document.getElementById("cost_each");
+    var preview = document.getElementById("preview-profit");
+
+    var isNew = (product.tagName === "SELECT");   // false when editing a sale
+    var priceTyped = !isNew;                      // has the user typed their own price?
+
+    // fills in the cost (and the price, if the product has one) from the chosen product
+    function fillFromProduct() {
+        if (isNew) {
+            var option = product.options[product.selectedIndex];
+            cost.value = option.dataset.cost ? Number(option.dataset.cost).toFixed(2) : "";
+
+            if (!priceTyped && option.dataset.price && qty.value) {
+                paid.value = (Number(option.dataset.price) * Number(qty.value)).toFixed(2);
+            }
+        }
+        updatePreview();
+    }
+
+    // shows the profit while you are typing
+    function updatePreview() {
+        var profit = Number(paid.value) - Number(qty.value) * Number(cost.value);
+        preview.textContent = (profit < 0 ? "-$" : "$") + Math.abs(profit).toFixed(2);
+        preview.className = profit < 0 ? "loss" : "";
+    }
+
+    product.addEventListener("change", fillFromProduct);
+    qty.addEventListener("input", fillFromProduct);
+    paid.addEventListener("input", function () {
+        priceTyped = (paid.value !== "");   // if they clear it, auto-fill can work again
+        updatePreview();
+    });
+    updatePreview();
+</script>

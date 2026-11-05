@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local data and secrets (never commit these)
+instance/
+*.db
+*.sqlite3
+.env
+.env.*
+!.env.example
+
+# Frontend build output
+node_modules/
+app/static/dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
