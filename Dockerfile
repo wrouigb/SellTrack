@@ -15,7 +15,7 @@ COPY app ./app
 RUN npm run build
 
 
-FROM python:3.13-slim AS dependencies
+FROM python:3.15-slim AS dependencies
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv UV_PYTHON_DOWNLOADS=never UV_LINK_MODE=copy
 RUN pip install --no-cache-dir uv==0.11.32
 WORKDIR /build
@@ -23,7 +23,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project --compile-bytecode
 
 
-FROM python:3.13-slim AS web
+FROM python:3.15-slim AS web
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="SellTrack" \
       org.opencontainers.image.source="https://github.com/wrouigb/SellTrack" \
