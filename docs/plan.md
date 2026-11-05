@@ -125,7 +125,7 @@ All money and shares are `Float`. Most tables have no timestamps, there are no D
 - **Upfront costs:** money someone spent for the business. Fields: description, category (stock, equipment, fees, packaging, other), amount, date, **paid by** (a person), optional product link and notes.
 - **Payments:** money one person gave another, e.g. "Sam paid Alex $20". Records part-payment of a debt.
 - **Settle up:** pays off every remaining debt in one go. Saves a permanent snapshot (period dates, totals, everyone's figures, the transfers) and **resets the tally to $0** for the next period.
-  - **Undo last settle-up** exists for mistakes.
+  - **Undo last settle-up** exists for mistakes. It reverses the settle-up exactly, including putting everyone's shares back as they were.
   - Sales, costs and payments inside a settled period are locked for money fields until it's undone.
 
 ### 3.2 The rules (all in cents, so totals always add up exactly)
@@ -475,13 +475,15 @@ Checkpoints: I pause for review after phases 3 and 4. I deliver each phase as a 
 - Every item in the phase 3 row of section 10 is built. Sign-up, login, recovery and account security have routes with plain, unstyled pages; products, sales, reporting and the split are services only until phase 4 adds their pages.
 - Tests run on real Postgres 16 and Redis, as a role that owns its database but isn't a superuser. Coverage is 99% overall.
 
-**How the split rules were settled while building** (section 3 left these open):
-- **Usual receiver:** written onto each sale when it's saved, so changing the usual receiver later never re-attributes old sales. A sale saved before anyone exists has no receiver and counts as the usual receiver's. If several people remain and none is the usual receiver, the user has to choose before settling.
-- **Archiving:** blocked while the person has anything in the current period, including sales with no receiver if they're the usual receiver, so they settle first. Archiving sets their share to 0%.
-- **Undo:** reverses exactly what settling did, and doesn't touch shares. Archived people whose rows come back rejoin the sums at 0%. If shares have changed since, the app says so.
+**How the split rules were settled** (section 3 left these open; the usual receiver, archiving and undo rules were confirmed on 5 Nov 2026):
+- **Usual receiver:** written onto each sale when it's saved, so changing the usual receiver later never moves old sales. A sale saved while there's no usual receiver is written to whoever becomes the usual receiver next, and stays with them. If several people remain and none is the usual receiver, the user has to choose before settling.
+- **Archiving:** blocked while the person has anything in the current period, so they settle first. Archiving sets their share to 0%.
+- **Undo:** reverses exactly what settling did, including shares, so settling again gives the same figures. Anyone archived since who had a share comes back. Anyone with no share at that settle-up goes to 0%, or stays archived if they already were, and their reopened rows still count. If someone else has taken an archived person's name, the undo is refused until they're renamed. The usual receiver stays as it is, unless only one person is left and there isn't one. The audit log keeps the shares from before the undo.
 - **Deleting a person:** only with no history at all, including appearing in a past settlement's snapshot.
 - **Locks:** on a settled row, the amount, quantity, and who paid or received are locked. Dates, names and notes can still change. Deleting is blocked. Bulk delete skips and reports locked sales.
 - **Settling:** settles only the rows it read and locked, so a sale saved at the same moment falls into the next period. It's refused when there are no rows.
+
+**Also confirmed on 5 Nov 2026:** failed logins are limited to 5 a minute per username, accepting that someone could keep a known username locked out, and the added `sign_ins` table stays.
 
 **Left for later phases, as planned:**
 - Phase 4: all designed pages; forms for products, sales and the split; the time zone and theme settings; showing sign-in times in the user's time zone.

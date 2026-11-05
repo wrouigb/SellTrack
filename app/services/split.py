@@ -6,9 +6,11 @@ goes into it: everything in the current period, which is every row with ``settle
 * Settling up stamps those rows with a new settlement and saves a permanent snapshot, which
   resets the tally to $0. Rows in a settled period have their money locked until it's undone.
 * People with history are archived, never deleted. Archiving needs their part of the current
-  period to be settled first, but undoing a settle-up can bring an archived person's rows back,
-  so archived people still join the calculation (at their 0% share) whenever open rows
-  mention them.
+  period to be settled first.
+* Undoing a settle-up reverses it exactly: the rows reopen and shares go back to what they were.
+  Anyone archived since who had a share comes back. Anyone archived with no share stays archived,
+  but still joins the calculation at 0% whenever open rows mention them.
+* The usual receiver is written onto each sale, so changing it later never moves an old sale.
 """
 
 from __future__ import annotations
@@ -90,8 +92,12 @@ class PeriodView:
 @dataclass(frozen=True, slots=True)
 class UndoResult:
     settlement_id: int
-    #: The shares were changed after the settle-up, so balances won't match it any more.
-    shares_changed: bool
+    #: Shares had changed since the settle-up, and have been put back.
+    shares_restored: bool
+    #: Archived since the settle-up, and brought back because they had a share in it.
+    people_brought_back: tuple[str, ...] = ()
+    #: Had a share now, but not at the settle-up, so it's back to 0%.
+    people_set_to_zero: tuple[str, ...] = ()
 
 
 # -- People ---------------------------------------------------------------------------------
@@ -133,14 +139,11 @@ def add_person(
     is_first = _usual_receiver_id(user_id) is None and not _active_people(user_id)
     if usually_receives_money:
         _clear_usual_receiver(user_id)
-    person = Partner(
-        user_id=user_id,
-        name=checked(clean_name),
-        share_pct=checked(share),
-        receives_money_default=usually_receives_money or is_first,
-    )
+    person = Partner(user_id=user_id, name=checked(clean_name), share_pct=checked(share))
     db.session.add(person)
     _flush_names()
+    if usually_receives_money or is_first:
+        _make_usual_receiver(user_id, person)
     _warn_if_shares_off(user_id)
     db.session.commit()
     return person
@@ -189,7 +192,7 @@ def set_usual_receiver(user_id: int, partner_id: int) -> Partner:
         db.session.rollback()
         raise ValidationFailed(partner_id="Restore this person first.")
     _clear_usual_receiver(user_id)
-    person.receives_money_default = True
+    _make_usual_receiver(user_id, person)
     db.session.commit()
     return person
 
@@ -217,11 +220,7 @@ def archive_person(user_id: int, partner_id: int) -> Partner:
     person.receives_money_default = False
     db.session.flush()
     if was_usual:
-        # Only an obvious successor is picked. With several people left, guessing could
-        # credit sale money to the wrong person, so the user is made to choose.
-        remaining = _active_people(user_id)
-        if len(remaining) == 1:
-            remaining[0].receives_money_default = True
+        _pick_obvious_usual_receiver(user_id)
     _warn_if_shares_off(user_id)
     db.session.commit()
     return person
@@ -235,8 +234,9 @@ def restore_person(user_id: int, partner_id: int) -> Partner:
         return person
     needs_receiver = _usual_receiver_id(user_id) is None
     person.archived_at = None
-    person.receives_money_default = needs_receiver
     _flush_names()
+    if needs_receiver:
+        _make_usual_receiver(user_id, person)
     db.session.commit()
     return person
 
@@ -254,9 +254,7 @@ def delete_person(user_id: int, partner_id: int) -> None:
     db.session.delete(person)
     db.session.flush()
     if was_usual:
-        remaining = _active_people(user_id)
-        if len(remaining) == 1:
-            remaining[0].receives_money_default = True
+        _pick_obvious_usual_receiver(user_id)
     _warn_if_shares_off(user_id)
     db.session.commit()
 
@@ -664,9 +662,10 @@ def settle_up(user_id: int, *, actor_id: int | None = None) -> Settlement:
 
 
 def undo_last_settlement(user_id: int, *, actor_id: int | None = None) -> UndoResult:
-    """Put the most recent settle-up's rows back in the current period and forget its snapshot.
+    """Reverse the most recent settle-up: reopen its rows and put its shares back.
 
-    Only the latest can be undone, so periods can't be reopened out of order.
+    Only the latest can be undone, so periods can't be reopened out of order. Undoing several in
+    a row puts back each one's shares in turn. Nothing changes if the undo can't be completed.
     """
     _lock_account(user_id)
     settlement = db.session.scalar(
@@ -680,6 +679,9 @@ def undo_last_settlement(user_id: int, *, actor_id: int | None = None) -> UndoRe
         db.session.rollback()
         raise NotFoundError("There's no settle-up to undo.")
 
+    shares_before = {str(person.id): str(person.share_pct) for person in _active_people(user_id)}
+    restored = _restore_shares(user_id, settlement)
+
     for model in (Sale, UpfrontCost, PartnerPayment):
         db.session.execute(
             update(model)
@@ -687,30 +689,79 @@ def undo_last_settlement(user_id: int, *, actor_id: int | None = None) -> UndoRe
             .values(settlement_id=None)
         )
 
-    settled_shares = {
-        person["person_id"]: Decimal(person["share_pct"])
-        for person in settlement.snapshot["people"]
-        if Decimal(person["share_pct"])
-    }
-    current_shares = {p.id: p.share_pct for p in _active_people(user_id) if p.share_pct}
-    shares_changed = settled_shares != current_shares
-
     settlement_id = settlement.id
     audit.record(
         "split.settlement_undone",
         actor_id=actor_id,
         target_type="settlement",
         target_id=settlement_id,
-        # The settlement row goes away, so this is the only record of what it said.
-        details={"snapshot": settlement.snapshot},
+        # The settlement row and the newer shares both go away, so this is the only record of them.
+        details={"snapshot": settlement.snapshot, "shares_before_undo": shares_before},
     )
     db.session.delete(settlement)
-    body = "The rows are back in the current period."
-    if shares_changed:
-        body += " Shares have changed since, so balances may differ from that settle-up."
-    notify(user_id, Kind.SETTLEMENT_UNDONE, "Settle-up undone", body, url=_SPLIT_URL)
+    notify(
+        user_id, Kind.SETTLEMENT_UNDONE, "Settle-up undone", _undo_message(restored), url=_SPLIT_URL
+    )
     db.session.commit()
-    return UndoResult(settlement_id=settlement_id, shares_changed=shares_changed)
+    return UndoResult(
+        settlement_id=settlement_id,
+        shares_restored=restored.shares_restored,
+        people_brought_back=restored.people_brought_back,
+        people_set_to_zero=restored.people_set_to_zero,
+    )
+
+
+def _restore_shares(user_id: int, settlement: Settlement) -> UndoResult:
+    """Put everyone's share back to what it was at this settle-up."""
+    settled = {
+        person["person_id"]: Decimal(person["share_pct"])
+        for person in settlement.snapshot["people"]
+    }
+    brought_back: list[str] = []
+    set_to_zero: list[str] = []
+    changed = False
+    for person in list_people(user_id, include_archived=True):
+        share = settled.get(person.id, _ZERO_SHARE)
+        if person.archived_at is not None:
+            if not share:
+                continue  # wasn't sharing then, so they can stay archived
+            person.archived_at = None
+            brought_back.append(person.name)
+        elif not share and person.share_pct:
+            set_to_zero.append(person.name)
+        if person.share_pct != share:
+            person.share_pct = share
+            changed = True
+
+    _flush_names(
+        f"{' and '.join(brought_back)} had a share in this settle-up and need to come back to "
+        "undo it, but someone else has that name now. Rename them, then try again."
+    )
+    if brought_back and _usual_receiver_id(user_id) is None:
+        _pick_obvious_usual_receiver(user_id)
+    _warn_if_shares_off(user_id)
+    return UndoResult(
+        settlement_id=settlement.id,
+        shares_restored=changed,
+        people_brought_back=tuple(brought_back),
+        people_set_to_zero=tuple(set_to_zero),
+    )
+
+
+def _undo_message(restored: UndoResult) -> str:
+    parts = ["The rows are back in the current period."]
+    if restored.shares_restored:
+        parts.append("Shares are back to what they were at that settle-up.")
+    if restored.people_brought_back:
+        parts.append(
+            f"{' and '.join(restored.people_brought_back)} had a share then, "
+            "so they're no longer archived."
+        )
+    if restored.people_set_to_zero:
+        parts.append(
+            f"{' and '.join(restored.people_set_to_zero)} had no share then, so they're now at 0%."
+        )
+    return " ".join(parts)
 
 
 def list_settlements(user_id: int, *, limit: int = 50, offset: int = 0) -> Sequence[Settlement]:
@@ -798,6 +849,35 @@ def _usual_receiver_id(user_id: int) -> int | None:
     )
 
 
+def _make_usual_receiver(user_id: int, person: Partner) -> None:
+    """Make someone the usual receiver, and give them any open sales that had nobody to go to.
+
+    Those sales are written to this person now, so changing the usual receiver later can't move
+    them. Deleted sales are included, so restoring one can't either. Settled sales are locked.
+    """
+    person.receives_money_default = True
+    db.session.flush()
+    db.session.execute(
+        update(Sale)
+        .where(
+            Sale.user_id == user_id,
+            Sale.settlement_id.is_(None),
+            Sale.received_by_partner_id.is_(None),
+        )
+        .values(received_by_partner_id=person.id)
+    )
+
+
+def _pick_obvious_usual_receiver(user_id: int) -> None:
+    """Pick a usual receiver only if one person is left.
+
+    With several, a guess could credit sale money to the wrong person, so the user chooses.
+    """
+    remaining = _active_people(user_id)
+    if len(remaining) == 1:
+        _make_usual_receiver(user_id, remaining[0])
+
+
 def _clear_usual_receiver(user_id: int) -> None:
     # Flushed straight away: only one usual receiver can exist at any moment.
     db.session.execute(
@@ -856,14 +936,14 @@ def _has_any_history(user_id: int, partner_id: int) -> bool:
     return any(db.session.scalar(check.limit(1)) is not None for check in checks)
 
 
-def _flush_names() -> None:
+def _flush_names(clash_message: str = "You already have a person with that name.") -> None:
     """Save now, turning a clash on the unique name index into a friendly error."""
     try:
         db.session.flush()
     except IntegrityError as error:
         db.session.rollback()
         if violated_constraint(error) == _NAME_INDEX:
-            raise ConflictError(name="You already have a person with that name.") from None
+            raise ConflictError(name=clash_message) from None
         raise
 
 

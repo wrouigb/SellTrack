@@ -105,6 +105,10 @@ def balances(user_id):
     return {p.name: p.balance for p in split.current_period(user_id).result.people}
 
 
+def shares(user_id):
+    return {p.name: p.share_pct for p in split.list_people(user_id)}
+
+
 class TestWorkedExample:
     def test_sam_pays_alex_32_50(self, user_id, product, alex, sam):
         worked_example(user_id, product, alex, sam)
@@ -452,7 +456,9 @@ class TestUndo:
         result = split.undo_last_settlement(user_id)
 
         assert result.settlement_id == settlement.id
-        assert result.shares_changed is False
+        assert result.shares_restored is False
+        assert result.people_brought_back == ()
+        assert result.people_set_to_zero == ()
         assert split.current_period(user_id).result == before
         assert db.session.scalar(select(func.count()).select_from(Settlement)) == 0
 
@@ -482,7 +488,7 @@ class TestUndo:
         split.undo_last_settlement(user_id)
         assert split.current_period(user_id).result.money_in == Decimal("15.00")
 
-    def test_says_when_shares_changed_since(self, user_id, product, alex, sam):
+    def test_puts_the_old_shares_back(self, user_id, product, alex, sam):
         sell(user_id, product, "100", received_by=sam)
         split.settle_up(user_id)
         split.update_person(user_id, alex.id, name="Alex", share_pct="60")
@@ -490,22 +496,182 @@ class TestUndo:
 
         result = split.undo_last_settlement(user_id)
 
-        assert result.shares_changed is True
-        assert split.current_period(user_id).result.person(alex.id).balance == Decimal("60.00")
+        assert result.shares_restored is True
+        assert shares(user_id) == {"Alex": Decimal("50.00"), "Sam": Decimal("50.00")}
+        assert split.current_period(user_id).result.person(alex.id).balance == Decimal("50.00")
         note = db.session.scalar(
             select(Notification).where(Notification.kind == Kind.SETTLEMENT_UNDONE.value)
         )
-        assert "Shares have changed" in note.body
+        assert "Shares are back to what they were" in note.body
+
+    def test_settling_again_after_shares_changed_gives_the_same_answer(
+        self, user_id, product, alex, sam
+    ):
+        worked_example(user_id, product, alex, sam)
+        first = split.settle_up(user_id).snapshot
+        split.update_person(user_id, alex.id, name="Alex", share_pct="90")
+        split.update_person(user_id, sam.id, name="Sam", share_pct="10")
+        split.undo_last_settlement(user_id)
+        assert split.settle_up(user_id).snapshot == first
+
+    def test_says_nothing_about_shares_when_they_did_not_change(self, user_id, product, alex, sam):
+        sell(user_id, product, "100", received_by=sam)
+        split.settle_up(user_id)
+        split.undo_last_settlement(user_id)
+        note = db.session.scalar(
+            select(Notification).where(Notification.kind == Kind.SETTLEMENT_UNDONE.value)
+        )
+        assert note.body == "The rows are back in the current period."
+
+    def test_each_undo_puts_back_that_settle_ups_shares(self, user_id, product, alex, sam):
+        sell(user_id, product, "10", received_by=sam)
+        split.settle_up(user_id)  # 50/50
+        split.update_person(user_id, alex.id, name="Alex", share_pct="60")
+        split.update_person(user_id, sam.id, name="Sam", share_pct="40")
+        sell(user_id, product, "20", received_by=sam)
+        split.settle_up(user_id)  # 60/40
+        split.update_person(user_id, alex.id, name="Alex", share_pct="70")
+        split.update_person(user_id, sam.id, name="Sam", share_pct="30")
+
+        split.undo_last_settlement(user_id)
+        assert shares(user_id) == {"Alex": Decimal("60.00"), "Sam": Decimal("40.00")}
+        split.undo_last_settlement(user_id)
+        assert shares(user_id) == {"Alex": Decimal("50.00"), "Sam": Decimal("50.00")}
+
+    def test_someone_added_since_goes_to_zero_but_stays(self, user_id, product, alex, sam):
+        sell(user_id, product, "100", received_by=sam)
+        split.settle_up(user_id)
+        third = split.add_person(user_id, name="Third", share_pct="20")
+        split.update_person(user_id, alex.id, name="Alex", share_pct="40")
+        split.update_person(user_id, sam.id, name="Sam", share_pct="40")
+        cost = spend(user_id, third, "10.00")
+
+        result = split.undo_last_settlement(user_id)
+
+        assert result.people_set_to_zero == ("Third",)
+        assert shares(user_id) == {
+            "Alex": Decimal("50.00"),
+            "Sam": Decimal("50.00"),
+            "Third": Decimal("0.00"),
+        }
+        current = split.current_period(user_id).result
+        assert current.can_settle
+        assert current.person(third.id).gets_back == cost.amount, "their rows still count"
+        assert current.person(third.id).share_of_profit == Decimal("0.00")
+        note = db.session.scalar(
+            select(Notification).where(Notification.kind == Kind.SETTLEMENT_UNDONE.value)
+        )
+        assert "Third had no share then" in note.body
+
+    def test_someone_archived_since_comes_back_with_their_share(self, user_id, product, alex, sam):
+        spend(user_id, sam, "30.00")
+        sell(user_id, product, "100", received_by=alex)
+        before = split.current_period(user_id).result
+        split.settle_up(user_id)
+        split.archive_person(user_id, sam.id)
+        split.update_person(user_id, alex.id, name="Alex", share_pct="100")
+
+        result = split.undo_last_settlement(user_id)
+
+        assert result.shares_restored is True
+        assert result.people_brought_back == ("Sam",)
+        assert split.get_person(user_id, sam.id).archived_at is None
+        assert shares(user_id) == {"Alex": Decimal("50.00"), "Sam": Decimal("50.00")}
+        assert split.current_period(user_id).result == before
+        note = db.session.scalar(
+            select(Notification).where(Notification.kind == Kind.SETTLEMENT_UNDONE.value)
+        )
+        assert "Sam had a share then" in note.body
+
+    def test_someone_with_no_share_stays_archived_but_still_counts(
+        self, user_id, product, alex, sam
+    ):
+        """They were at 0%, so restoring shares doesn't need them back. Their rows still count."""
+        third = split.add_person(user_id, name="Third", share_pct="0")
+        spend(user_id, third, "30.00")
+        sell(user_id, product, "100", received_by=alex)
+        split.settle_up(user_id)
+        split.archive_person(user_id, third.id)
+
+        result = split.undo_last_settlement(user_id)
+
+        assert result.people_brought_back == ()
+        assert split.get_person(user_id, third.id).archived_at is not None
+        assert [p.name for p in split.list_people(user_id)] == ["Alex", "Sam"]
+        current = split.current_period(user_id).result
+        assert current.person(third.id).share_pct == Decimal("0.00")
+        assert current.person(third.id).gets_back == Decimal("30.00")
+        assert sum(p.balance for p in current.people) == Decimal("0.00")
+        assert current.can_settle
+
+    def test_a_name_clash_blocks_it_and_changes_nothing(self, user_id, product, alex, sam):
+        sale = sell(user_id, product, "100", received_by=alex)
+        settlement = split.settle_up(user_id)
+        split.archive_person(user_id, sam.id)
+        split.update_person(user_id, alex.id, name="Alex", share_pct="60")
+        new_sam = split.add_person(user_id, name="SAM", share_pct="40")
+
+        with pytest.raises(ConflictError, match="Sam had a share in this settle-up"):
+            split.undo_last_settlement(user_id)
+
+        assert split.get_settlement(user_id, settlement.id).id == settlement.id
+        assert split.get_person(user_id, sam.id).archived_at is not None
+        assert shares(user_id) == {"Alex": Decimal("60.00"), "SAM": Decimal("40.00")}
+        db.session.refresh(sale)
+        assert sale.settlement_id == settlement.id
+
+        split.update_person(user_id, new_sam.id, name="Samantha", share_pct="40")
+        assert split.undo_last_settlement(user_id).people_brought_back == ("Sam",)
+
+    def test_clears_the_warning_about_shares(self, user_id, product, alex, sam):
+        sell(user_id, product, "100", received_by=sam)
+        split.settle_up(user_id)
+        split.update_person(user_id, alex.id, name="Alex", share_pct="10")
+        assert [n.kind for n in notifications.list_for(user_id, unread_only=True)].count(
+            Kind.SHARES_NOT_100.value
+        ) == 1
+        split.undo_last_settlement(user_id)
+        assert Kind.SHARES_NOT_100.value not in [
+            n.kind for n in notifications.list_for(user_id, unread_only=True)
+        ]
+
+    def test_leaves_the_usual_receiver_alone(self, user_id, product, alex, sam):
+        sell(user_id, product, "100", received_by=sam)
+        split.settle_up(user_id)
+        split.set_usual_receiver(user_id, sam.id)
+        split.undo_last_settlement(user_id)
+        db.session.refresh(sam)
+        assert sam.receives_money_default is True
+
+    def test_someone_brought_back_alone_becomes_the_usual_receiver(self, user_id, product):
+        alex = split.add_person(user_id, name="Alex", share_pct="100")
+        sell(user_id, product, "100", received_by=alex)
+        split.settle_up(user_id)
+        split.archive_person(user_id, alex.id)
+        assert split.undo_last_settlement(user_id).people_brought_back == ("Alex",)
+        assert split.get_person(user_id, alex.id).receives_money_default is True
+
+    def test_no_guessing_the_usual_receiver_between_several(self, user_id, product, alex, sam):
+        third = split.add_person(user_id, name="Third", share_pct="0")
+        sell(user_id, product, "100", received_by=sam)
+        split.settle_up(user_id)
+        split.archive_person(user_id, alex.id)  # alex was the usual receiver
+        split.undo_last_settlement(user_id)
+        assert not [p for p in split.list_people(user_id) if p.receives_money_default]
+        assert third.id
 
     def test_keeps_an_audit_record_of_what_was_undone(self, user_id, product, alex, sam):
         worked_example(user_id, product, alex, sam)
         settlement = split.settle_up(user_id, actor_id=user_id)
         snapshot = settlement.snapshot
+        split.update_person(user_id, alex.id, name="Alex", share_pct="60")
+        split.update_person(user_id, sam.id, name="Sam", share_pct="40")
         split.undo_last_settlement(user_id, actor_id=user_id)
         entry = db.session.scalar(
             select(AuditLog).where(AuditLog.action == "split.settlement_undone")
         )
         assert entry.details["snapshot"] == snapshot
+        assert entry.details["shares_before_undo"] == {str(alex.id): "60.00", str(sam.id): "40.00"}
 
     def test_cannot_undo_another_accounts_settlement(self, user_id, product, alex, sam):
         sell(user_id, product, "10", received_by=sam)
@@ -596,6 +762,85 @@ class TestPeople:
         assert notifications.unread_count(user_id) == 1
         split.set_even_shares(user_id)
         assert notifications.unread_count(user_id) == 0
+
+
+class TestChangingTheUsualReceiverNeverMovesOldSales:
+    """Whoever received a sale stays that way, however it came to be recorded."""
+
+    def _holding(self, user_id, person):
+        return split.current_period(user_id).result.person(person.id).holding
+
+    def test_a_sale_with_a_receiver(self, user_id, product, alex, sam):
+        sell(user_id, product, "100")
+        split.set_usual_receiver(user_id, sam.id)
+        assert self._holding(user_id, alex) == Decimal("100.00")
+        assert self._holding(user_id, sam) == Decimal("0.00")
+
+    def test_a_sale_saved_before_anyone_was_added(self, user_id, product):
+        sale = sell(user_id, product, "100")
+        assert sale.received_by_partner_id is None
+        alex = split.add_person(user_id, name="Alex", share_pct="50")
+        sam = split.add_person(user_id, name="Sam", share_pct="50")
+        db.session.refresh(sale)
+        assert sale.received_by_partner_id == alex.id
+
+        split.set_usual_receiver(user_id, sam.id)
+
+        assert self._holding(user_id, alex) == Decimal("100.00")
+        assert self._holding(user_id, sam) == Decimal("0.00")
+
+    def test_a_sale_saved_while_nobody_was_the_usual_receiver(self, user_id, product, alex, sam):
+        third = split.add_person(user_id, name="Third", share_pct="0")
+        split.archive_person(user_id, alex.id)  # several left, so nobody is chosen for them
+        sale = sell(user_id, product, "100")
+        assert sale.received_by_partner_id is None
+        assert Issue.UNASSIGNED_SALES in split.current_period(user_id).result.issues
+
+        split.set_usual_receiver(user_id, sam.id)
+        assert self._holding(user_id, sam) == Decimal("100.00")
+        assert Issue.UNASSIGNED_SALES not in split.current_period(user_id).result.issues
+
+        split.set_usual_receiver(user_id, third.id)
+        assert self._holding(user_id, sam) == Decimal("100.00")
+        assert self._holding(user_id, third) == Decimal("0.00")
+
+    def test_a_deleted_sale_that_is_restored_later(self, user_id, product):
+        sale = sell(user_id, product, "100")
+        sales.delete_sale(user_id, sale.id)
+        alex = split.add_person(user_id, name="Alex", share_pct="50")
+        sam = split.add_person(user_id, name="Sam", share_pct="50")
+        split.set_usual_receiver(user_id, sam.id)
+
+        sales.restore_sales(user_id, [sale.id])
+
+        assert self._holding(user_id, alex) == Decimal("100.00")
+        assert self._holding(user_id, sam) == Decimal("0.00")
+
+    def test_a_new_person_chosen_as_usual_receiver(self, user_id, product, alex):
+        sell(user_id, product, "100")
+        sam = split.add_person(user_id, name="Sam", share_pct="50", usually_receives_money=True)
+        assert self._holding(user_id, alex) == Decimal("100.00")
+        assert self._holding(user_id, sam) == Decimal("0.00")
+
+    def test_only_this_accounts_sales_are_touched(self, user_id, product):
+        other = UserFactory()
+        db.session.commit()
+        theirs = SaleFactory(user_id=other.id, received_by_partner_id=None)
+        db.session.commit()
+        split.add_person(user_id, name="Alex", share_pct="100")
+        db.session.refresh(theirs)
+        assert theirs.received_by_partner_id is None
+
+    def test_a_sale_in_a_settled_period_is_left_alone(self, user_id, product, alex, sam):
+        """A $0 sale can settle with no receiver. Its row is locked, so it isn't rewritten."""
+        split._clear_usual_receiver(user_id)
+        db.session.commit()
+        sale = sell(user_id, product, "0.00")
+        sell(user_id, product, "10", received_by=sam)
+        split.settle_up(user_id)
+        split.set_usual_receiver(user_id, alex.id)
+        db.session.refresh(sale)
+        assert sale.received_by_partner_id is None
 
 
 class TestArchive:
@@ -698,29 +943,6 @@ class TestArchive:
         split.archive_person(user_id, alex.id)
         split.archive_person(user_id, sam.id)
         assert split.restore_person(user_id, alex.id).receives_money_default is True
-
-    def test_undoing_a_settlement_brings_archived_people_back_into_the_sums(
-        self, user_id, product, alex, sam
-    ):
-        """They keep their rows: paid back what they spent, and handing over what they hold."""
-        spend(user_id, sam, "30.00")
-        sell(user_id, product, "100", received_by=alex)
-        split.settle_up(user_id)
-        split.archive_person(user_id, sam.id)
-        split.update_person(user_id, alex.id, name="Alex", share_pct="100")
-
-        result = split.undo_last_settlement(user_id)
-
-        assert result.shares_changed is True
-        current = split.current_period(user_id).result
-        assert {p.name for p in current.people} == {"Alex", "Sam"}
-        assert current.person(sam.id).share_pct == Decimal("0.00")
-        assert current.person(sam.id).gets_back == Decimal("30.00")
-        assert sum(p.balance for p in current.people) == Decimal("0.00")
-        assert [(t.from_name, t.to_name, t.amount) for t in current.transfers] == [
-            ("Alex", "Sam", Decimal("30.00"))
-        ]
-        assert current.can_settle
 
 
 class TestDeletePerson:
