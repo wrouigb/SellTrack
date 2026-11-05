@@ -62,6 +62,10 @@ ARG REVISION=unknown
 LABEL org.opencontainers.image.title="SellTrack Nginx" \
       org.opencontainers.image.source="https://github.com/wrouigb/SellTrack" \
       org.opencontainers.image.revision="$REVISION"
+# Security fixes from since the base image was built.
+USER root
+RUN apk upgrade --no-cache
+USER 101
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY deploy/down.html /usr/share/nginx/html/down.html
 COPY --from=assets /build/app/static/dist /usr/share/nginx/html/static/dist
