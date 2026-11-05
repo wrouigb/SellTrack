@@ -37,7 +37,20 @@ All notable changes to SellTrack are recorded here. The format follows
 - Sales list: filters, sorting, paging, bulk delete with undo, and CSV download. Spreadsheet
   formulas in customer names and notes are defused in the file.
 
+- The admin console at `/admin`: accounts with search, filters, sorting, paging and bulk suspend;
+  account details and activity counts; password resets; a support inbox; announcements; the audit
+  log; feature flags; and system health, including disk space and the last backup.
+- Notifications: a page, and a bell that keeps its count up to date by itself.
+- Support: a form on the help page and a page of your own messages and their replies.
+- Download everything in your account as a zip of CSV files.
+- A nightly cleanup (`flask jobs scheduler`), which removes sales deleted over 30 days ago, old
+  sign-ins and old read notifications.
+- Dashboard totals are cached in Redis, and stop being used as soon as anything changes them.
+- `app/services/entitlements.py`, the single place billing limits would go. Everything is unlimited.
+
 ### Changed
+- CSV downloads open correctly in Excel, including names with accents.
+- Public pages offer a way back to the app, rather than "Log in", when you're already logged in.
 - The original app has been replaced. Its old addresses redirect to the new ones.
 - Even splits now total exactly 100%, and all money is exact to the cent.
 - Product search and sale search ignore case and treat `%` and `_` as ordinary characters.
@@ -52,3 +65,8 @@ All notable changes to SellTrack are recorded here. The format follows
 - Confirmations use a native dialog with the message set as text, so a product name can't inject
   script, which the original's inline `confirm()` allowed.
 - Pages aren't kept in browser storage, so a shared computer can't show them later.
+- Suspending an account ends its sessions for good, so reactivating it can't bring back one that
+  was stolen.
+- The audit log no longer keeps settle-up figures or the names of people in a split. It outlives
+  the account, so deleting an account now really does remove them.
+- Cached figures are stored as JSON rather than pickle, so getting into Redis can't run code.

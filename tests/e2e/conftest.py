@@ -21,7 +21,7 @@ from werkzeug.serving import make_server
 
 from app import create_app
 from app.extensions import db
-from app.services import auth, products, sales, split
+from app.services import auth, flags, products, sales, split, support
 from tests.conftest import make_settings, redis_url
 from tests.factories import PASSWORD
 
@@ -31,6 +31,8 @@ AXE = ROOT / "node_modules/axe-core/axe.min.js"
 
 ACCOUNT = "markets"
 EMPTY_ACCOUNT = "newcomer"
+ADMIN_ACCOUNT = "chief"
+ADMIN_PASSWORD = "a-long-admin-passphrase"
 PHONE = {"width": 360, "height": 740}
 DESKTOP = {"width": 1280, "height": 860}
 
@@ -129,8 +131,25 @@ def data(e2e_app: Flask) -> dict[str, Any]:
         open_payment = split.record_payment(
             uid, from_partner_id=sam.id, to_partner_id=alex.id, amount="5", paid_on="2026-11-03"
         )
+        admin = auth.create_admin(ADMIN_ACCOUNT, ADMIN_PASSWORD)
+        admin_id = admin.id
+        waiting = support.send_message(uid, subject="How do I undo a settle-up?", body="Thanks!")
+        answered = support.send_message(uid, subject="Can I export my data?", body="All of it?")
+        support.reply(admin, answered.id, "Yes. Settings, then Your data.")
+        flag = flags.set_flag(
+            "new-reports",
+            actor_id=admin_id,
+            enabled=True,
+            rollout_pct=10,
+            allow_user_ids=[uid],
+            description="The new reports page",
+        )
         records = {
             "user": uid,
+            "admin": admin_id,
+            "waiting_message": waiting.id,
+            "answered_message": answered.id,
+            "flag": flag.id,
             "product": stamp.id,
             "settled_sale": settled_sale.id,
             "open_sale": open_sale.id,
@@ -156,12 +175,14 @@ def base_url(e2e_app: Flask, data: dict[str, Any]) -> Iterator[str]:
     thread.join()
 
 
-def _storage_state(browser: Browser, base_url: str, username: str, path: Path) -> str:
+def _storage_state(
+    browser: Browser, base_url: str, username: str, path: Path, password: str = PASSWORD
+) -> str:
     context = browser.new_context()
     page = context.new_page()
     page.goto(f"{base_url}/login")
     page.fill("#username", username)
-    page.fill("#password", PASSWORD)
+    page.fill("#password", password)
     page.click("main button[type=submit]")
     page.wait_for_url(f"{base_url}/app")
     context.storage_state(path=str(path))
@@ -180,6 +201,17 @@ def logged_in_state(browser: Browser, base_url: str, tmp_path_factory: Any) -> s
 def empty_state(browser: Browser, base_url: str, tmp_path_factory: Any) -> str:
     return _storage_state(
         browser, base_url, EMPTY_ACCOUNT, tmp_path_factory.mktemp("state") / "newcomer.json"
+    )
+
+
+@pytest.fixture(scope="session")
+def admin_state(browser: Browser, base_url: str, tmp_path_factory: Any) -> str:
+    return _storage_state(
+        browser,
+        base_url,
+        ADMIN_ACCOUNT,
+        tmp_path_factory.mktemp("state") / "chief.json",
+        password=ADMIN_PASSWORD,
     )
 
 

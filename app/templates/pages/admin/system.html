@@ -1,0 +1,15 @@
+{% extends "layouts/admin.html" %}
+{% from "pages/admin/_health.html" import health_list %}
+{% block title %}System - SellTrack admin{% endblock %}
+{% block content %}
+<div class="page-head"><h1>System</h1></div>
+<div class="stack page-narrow-block">
+  {% if health.needs_attention %}
+  <div class="notice notice-warning" role="status">Something below needs a look.</div>
+  {% endif %}
+  <section class="panel">
+    {{ health_list(health) }}
+  </section>
+  <p class="soft">Disk space is measured where {{ 'backups are kept' if health.backup.configured else 'the app is running' }} ({{ health.disk.path if health.disk else 'unavailable' }}). The cleanup runs each night, removing sales deleted over 30 days ago, old sign-ins and old notifications you've read.</p>
+</div>
+{% endblock %}

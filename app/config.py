@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import secrets
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.extensions import JsonSerializer
 
 Environment = Literal["development", "testing", "staging", "production"]
 
@@ -42,6 +45,8 @@ class Settings(BaseSettings):
     trusted_proxy_count: int = Field(default=0, ge=0, le=5)
     log_level: str = "INFO"
     sentry_dsn: SecretStr | None = None
+    #: Where nightly backups are written, for the admin's system page to check on.
+    backup_dir: Path | None = None
 
 
 class BaseConfig:
@@ -81,6 +86,15 @@ class BaseConfig:
         "socket_timeout": 1,
     }
 
+    # Dashboard figures. Without Redis nothing is cached, and the dashboard just asks the database.
+    CACHE_DEFAULT_TIMEOUT = 300
+    CACHE_KEY_PREFIX = "selltrack:cache:"
+    CACHE_NO_NULL_WARNING = True
+    CACHE_OPTIONS: ClassVar[dict[str, Any]] = {
+        "socket_connect_timeout": 1,
+        "socket_timeout": 1,
+    }
+
     # Argon2id. These are RFC 9106's low-memory recommendation (64 MiB), fine on a Raspberry Pi.
     ARGON2_TIME_COST = 3
     ARGON2_MEMORY_COST_KIB = 65_536
@@ -101,6 +115,7 @@ class TestingConfig(BaseConfig):
     # Most tests post forms directly. The tests of CSRF itself turn it back on.
     WTF_CSRF_ENABLED = False
     RATELIMIT_KEY_PREFIX = "selltrack-test"
+    CACHE_KEY_PREFIX = "selltrack-test:cache:"
     # The cheapest settings Argon2 allows, so that hundreds of test logins stay quick.
     ARGON2_TIME_COST = 1
     ARGON2_MEMORY_COST_KIB = 8
@@ -180,6 +195,10 @@ def build_flask_config(settings: Settings) -> dict[str, Any]:
         settings.redis_url.get_secret_value() if settings.redis_url else "memory://"
     )
     config["REDIS_URL"] = settings.redis_url.get_secret_value() if settings.redis_url else None
+    config["CACHE_TYPE"] = "RedisCache" if settings.redis_url else "NullCache"
+    config["CACHE_REDIS_URL"] = config["REDIS_URL"]
+    config["CACHE_SERIALIZER"] = JsonSerializer if settings.redis_url else None
+    config["BACKUP_DIR"] = settings.backup_dir
     config["TRUSTED_PROXY_COUNT"] = settings.trusted_proxy_count
     config["LOG_LEVEL"] = settings.log_level.upper()
     config["SENTRY_DSN"] = settings.sentry_dsn.get_secret_value() if settings.sentry_dsn else None

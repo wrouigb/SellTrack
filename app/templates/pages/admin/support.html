@@ -1,0 +1,50 @@
+{% extends "layouts/admin.html" %}
+{% from "components/forms.html" import field %}
+{% from "components/ui.html" import empty_state, pagination, support_status %}
+{% block title %}Support - SellTrack admin{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Support</h1></div>
+
+<form method="get" class="filters filters-2" role="search"
+      hx-get="{{ url_for('admin.support_inbox') }}"
+      hx-trigger="input changed delay:300ms from:input[type=search], change"
+      hx-select="#support-results" hx-target="#support-results" hx-swap="outerHTML"
+      hx-push-url="true" hx-indicator="#support-results">
+  {{ field(form.q, attrs={'autocomplete': 'off'}) }}
+  {{ field(form.status) }}
+  <button class="btn btn-secondary" type="submit">Filter</button>
+</form>
+
+<div id="support-results" class="refresh-dims"
+     hx-target="#support-results" hx-select="#support-results" hx-swap="outerHTML"
+     hx-push-url="true" hx-indicator="#support-results">
+  {% if page.items %}
+  <div class="table-wrap">
+    <table class="table table-stack" role="table">
+      <caption class="sr-only">Support messages</caption>
+      <thead><tr role="row">
+        <th scope="col" role="columnheader">Subject</th>
+        <th scope="col" role="columnheader">From</th>
+        <th scope="col" role="columnheader">Sent</th>
+        <th scope="col" role="columnheader">Status</th>
+      </tr></thead>
+      <tbody>
+        {% for item in page.items %}
+        <tr role="row">
+          <td role="cell" class="cell-title long-text"><a href="{{ url_for('admin.support_message', message_id=item.message.id) }}">{{ item.message.subject }}</a></td>
+          <td role="cell" data-label="From">{{ item.username }}</td>
+          <td role="cell" data-label="Sent" class="num whitespace-nowrap">{{ item.message.created_at | local_datetime }}</td>
+          <td role="cell" data-label="Status">{{ support_status(item.message.status.value) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pagination(page) }}
+  {% elif chosen == 'open' and not form.q.data %}
+    <div class="panel">{{ empty_state("Nothing waiting", "Every message has been answered.") }}</div>
+  {% else %}
+    <div class="panel">{{ empty_state("No messages match", "Try a different search, or show all messages.", url_for('admin.support_inbox', status='all'), "Show all messages") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

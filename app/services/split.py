@@ -35,7 +35,7 @@ from app.models import (
     User,
 )
 from app.money import even_shares
-from app.services import audit
+from app.services import audit, entitlements
 from app.services.errors import (
     CannotSettleError,
     ConflictError,
@@ -134,6 +134,7 @@ def add_person(
     )
     share = clean_percent(errors, "share_pct", share_pct)
     errors.raise_if_any()
+    entitlements.check(user_id, entitlements.Limit.PEOPLE)
 
     _lock_account(user_id)
     is_first = _usual_receiver_id(user_id) is None and not _active_people(user_id)
@@ -678,9 +679,9 @@ def settle_up(user_id: int, *, actor_id: int | None = None) -> Settlement:
         target_type="settlement",
         target_id=settlement.id,
         details={
-            "money_in": str(result.money_in),
-            "upfront_total": str(result.upfront_total),
-            "profit_to_share": str(result.profit_to_share),
+            "sales": len(sale_rows),
+            "costs": len(cost_rows),
+            "payments": len(payment_rows),
         },
     )
     notify(
@@ -728,8 +729,9 @@ def undo_last_settlement(user_id: int, *, actor_id: int | None = None) -> UndoRe
         actor_id=actor_id,
         target_type="settlement",
         target_id=settlement_id,
-        # The settlement row and the newer shares both go away, so this is the only record of them.
-        details={"snapshot": settlement.snapshot, "shares_before_undo": shares_before},
+        # The newer shares are overwritten, so this is the only record of them. No names or money:
+        # the audit log outlives the account, and the admin can read it.
+        details={"shares_before_undo": shares_before},
     )
     db.session.delete(settlement)
     notify(

@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 
 from app.extensions import db
 from app.models import Partner, Product, Sale, Settlement, Theme, UpfrontCost, User
-from app.services import auth, products, sales, split
+from app.services import auth, export, products, sales, split
 from tests.conftest import login, recovery_codes_in, register
 from tests.factories import PASSWORD, SaleFactory
 
@@ -603,7 +603,7 @@ class TestDeletingSales:
 
 class TestCsvExport:
     def _rows(self, response):
-        return list(csv.reader(io.StringIO(response.text)))
+        return list(csv.reader(io.StringIO(response.text.removeprefix(export.BOM))))
 
     def test_downloads_every_matching_sale(self, app, client, stocked):
         for number in range(30):

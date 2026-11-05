@@ -1,0 +1,63 @@
+{% extends "layouts/admin.html" %}
+{% from "components/forms.html" import field %}
+{% from "components/ui.html" import empty_state, pagination %}
+{% from "pages/admin/_audit_table.html" import detail_text %}
+{% block title %}Audit log - SellTrack admin{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Audit log</h1></div>
+
+<form method="get" class="filters filters-4" role="search"
+      hx-get="{{ url_for('admin.audit_log') }}"
+      hx-trigger="input changed delay:300ms from:input[type=search], change"
+      hx-select="#audit-results" hx-target="#audit-results" hx-swap="outerHTML"
+      hx-select-oob="#result-count:innerHTML" hx-push-url="true" hx-indicator="#audit-results">
+  {{ field(form.action) }}
+  {{ field(form.actor, attrs={'autocomplete': 'off'}) }}
+  {{ field(form.date_from) }}
+  {{ field(form.date_to) }}
+  <button class="btn btn-secondary" type="submit">Filter</button>
+</form>
+
+<p id="result-count" class="sales-summary" role="status"><span>{{ page.total }} entr{{ 'y' if page.total == 1 else 'ies' }}</span></p>
+
+<div id="audit-results" class="refresh-dims"
+     hx-target="#audit-results" hx-select="#audit-results" hx-swap="outerHTML"
+     hx-select-oob="#result-count:innerHTML" hx-push-url="true" hx-indicator="#audit-results">
+  {% if page.items %}
+  <div class="table-wrap">
+    <table class="table table-stack" role="table">
+      <caption class="sr-only">Security-related actions, newest first</caption>
+      <thead><tr role="row">
+        <th scope="col" role="columnheader">When</th>
+        <th scope="col" role="columnheader">What</th>
+        <th scope="col" role="columnheader">Done by</th>
+        <th scope="col" role="columnheader">To</th>
+        <th scope="col" role="columnheader">From</th>
+        <th scope="col" role="columnheader">Details</th>
+      </tr></thead>
+      <tbody>
+        {% for row in page.items %}
+        <tr role="row">
+          <td role="cell" class="cell-title num whitespace-nowrap">{{ row.entry.created_at | local_datetime }}</td>
+          <td role="cell" data-label="What">{{ row.label }}</td>
+          <td role="cell" data-label="Done by">{% if row.actor_name %}<a href="{{ url_for('admin.user_detail', user_id=row.entry.actor_id) }}">{{ row.actor_name }}</a>{% elif row.entry.action.startswith('system.') %}SellTrack{% else %}<span class="soft">No account</span>{% endif %}</td>
+          <td role="cell" data-label="To">
+            {%- if row.target_name %}<a href="{{ url_for('admin.user_detail', user_id=row.entry.target_id) }}">{{ row.target_name }}</a>
+            {%- elif row.entry.target_type == 'user' and row.entry.target_id %}<span class="soft">Deleted account</span>
+            {%- elif row.entry.target_type == 'support_message' %}<a href="{{ url_for('admin.support_message', message_id=row.entry.target_id) }}">Message {{ row.entry.target_id }}</a>
+            {%- elif row.entry.target_type and row.entry.target_type != 'user' %}<span class="soft">{{ row.entry.target_type | replace('_', ' ') }} {{ row.entry.target_id }}</span>
+            {%- endif -%}
+          </td>
+          <td role="cell" data-label="From" class="num">{{ row.entry.ip or '' }}</td>
+          <td role="cell" data-label="Details">{{ detail_text(row.details) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pagination(page) }}
+  {% else %}
+    <div class="panel">{{ empty_state("Nothing matches", "Try different filters.", url_for('admin.audit_log'), "Clear filters") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

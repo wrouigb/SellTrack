@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models import Product, ProductCostChange, Sale
+from app.services import entitlements
 from app.services.errors import ConflictError, NotFoundError, ValidationFailed
 from app.services.validation import Errors, checked, clean_money, clean_text, violated_constraint
 
@@ -65,6 +66,7 @@ def create_product(
     clean_cost = clean_money(errors, "cost", cost)
     clean_price = clean_money(errors, "sell_price", sell_price, required=False)
     errors.raise_if_any()
+    entitlements.check(user_id, entitlements.Limit.PRODUCTS)
 
     product = Product(
         user_id=user_id, name=checked(clean_name), cost=checked(clean_cost), sell_price=clean_price

@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from zoneinfo import available_timezones
@@ -345,6 +345,8 @@ def complete_onboarding(user: User) -> None:
 
 def admin_reset_password(actor: User, user_id: int) -> str:
     """Give a user a temporary password, which they must change at next login. Returns it."""
+    if user_id == actor.id:
+        raise ValidationFailed(password="Change your own password under Settings.")
     user = _get_user(user_id)
     temporary = secrets.token_urlsafe(_TEMP_PASSWORD_BYTES)
     user.password_hash = passwords.hash_password(temporary)
@@ -366,8 +368,32 @@ def set_user_status(actor: User, user_id: int, status: UserStatus) -> None:
     """Suspend or reactivate an account. Suspending takes effect on the user's next request."""
     if user_id == actor.id and status is UserStatus.SUSPENDED:
         raise ValidationFailed(status="You can't suspend your own account.")
-    user = _get_user(user_id)
+    _change_status(actor, _get_user(user_id), status)
+    db.session.commit()
+
+
+def bulk_suspend(actor: User, user_ids: Iterable[int]) -> int:
+    """Suspend many accounts at once, never your own. Returns how many were newly suspended."""
+    wanted = set(user_ids) - {actor.id}
+    rows = db.session.scalars(
+        select(User)
+        .where(User.id.in_(wanted), User.status == UserStatus.ACTIVE)
+        .order_by(User.id)
+        .with_for_update()
+    ).all()
+    for user in rows:
+        _change_status(actor, user, UserStatus.SUSPENDED)
+    db.session.commit()
+    return len(rows)
+
+
+def _change_status(actor: User, user: User, status: UserStatus) -> None:
+    if user.status is status:
+        return
     user.status = status
+    if status is UserStatus.SUSPENDED:
+        # Otherwise a stolen session would start working again when the account is reactivated.
+        user.session_version += 1
     audit.record(
         "admin.user_status_changed",
         actor_id=actor.id,
@@ -375,7 +401,6 @@ def set_user_status(actor: User, user_id: int, status: UserStatus) -> None:
         target_id=user.id,
         details={"status": status.value},
     )
-    db.session.commit()
 
 
 def _get_user(user_id: int) -> User:

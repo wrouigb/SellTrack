@@ -1,5 +1,5 @@
 {% extends "layouts/base.html" %}
-{% from "components/ui.html" import toasts, confirm_dialog, icon %}
+{% from "components/ui.html" import toasts, confirm_dialog, icon, account_menu, bell %}
 {% set section = request.blueprint %}
 {% block body %}
 <header class="band">
@@ -15,20 +15,8 @@
     </nav>
     <span class="ml-auto md:hidden"></span>
     <a class="btn btn-primary band-sale" href="{{ url_for('sales.new_sale') }}">Add sale</a>
-    <details class="menu" x-data="menu" x-on:click.outside="closeQuietly" x-on:keydown.escape="close">
-      <summary aria-label="Account menu for {{ current_user.username }}">
-        <span class="menu-name">{{ current_user.username }}</span>
-        {{ icon('chevron') }}
-      </summary>
-      <div class="menu-list">
-        <a href="{{ url_for('settings.account') }}">Settings</a>
-        <a href="{{ url_for('public.help_page') }}">Help</a>
-        <form method="post" action="{{ url_for('auth.logout') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit">Log out</button>
-        </form>
-      </div>
-    </details>
+    {{ bell(unread_notifications()) }}
+    {{ account_menu(current_user.username, current_user.is_admin) }}
   </div>
 </header>
 <main id="main" tabindex="-1">

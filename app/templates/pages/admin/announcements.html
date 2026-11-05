@@ -1,0 +1,42 @@
+{% extends "layouts/admin.html" %}
+{% from "components/forms.html" import field, error_summary %}
+{% block title %}Announcements - SellTrack admin{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Announcements</h1></div>
+<div class="stack page-narrow-block">
+  <section class="panel">
+    <h2>Send an announcement</h2>
+    <p class="soft mt-1 mb-4">It goes to the notifications of every active account, including yours. It can't be taken back.</p>
+    {{ error_summary(form) }}
+    <form method="post" novalidate data-confirm="Send this to every active account? It can't be taken back." data-confirm-label="Send announcement">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ field(form.title, attrs={'autocomplete': 'off', 'maxlength': 200}) }}
+      {{ field(form.body, attrs={'rows': 4, 'maxlength': 2000}) }}
+      {{ field(form.url, hint="A page on this site, like /help. People can open it from the notification.", attrs={'autocomplete': 'off'}) }}
+      <button class="btn btn-primary mt-4" type="submit">Send announcement</button>
+    </form>
+  </section>
+  <section>
+    <h2 class="mb-3">Sent before</h2>
+    {% if past %}
+    <ul class="notes">
+      {% for entry in past %}
+      <li class="note note-block">
+        <div class="note-text">
+          <h3 class="note-title">{{ entry.details.title }}</h3>
+          <p class="note-meta">
+            <span>{{ entry.created_at | local_datetime }}</span>
+            <span>To {{ entry.details.recipients }} account{{ '' if entry.details.recipients == 1 else 's' }}</span>
+          </p>
+          <p class="note-body">{{ entry.details.body }}</p>
+          {% if entry.details.url %}<p class="note-meta mt-1"><span>Links to {{ entry.details.url }}</span></p>{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="soft">Nothing yet.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

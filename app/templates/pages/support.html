@@ -1,0 +1,44 @@
+{% extends "layouts/app.html" %}
+{% from "components/forms.html" import field, error_summary %}
+{% from "components/ui.html" import pagination, support_status %}
+{% block title %}Support - SellTrack{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Support</h1></div>
+<div class="stack page-narrow-block">
+  <section class="panel" id="contact">
+    <h2>Send a message</h2>
+    <p class="soft mt-1 mb-4">SellTrack has no email, so the reply shows up in your notifications and on this page. Maybe it's already covered in <a href="{{ url_for('public.help_page') }}">Help</a>.</p>
+    {{ error_summary(form) }}
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ field(form.subject, attrs={'autocomplete': 'off', 'maxlength': 200}) }}
+      {{ field(form.body, attrs={'rows': 6, 'maxlength': 5000}) }}
+      <button class="btn btn-primary mt-4" type="submit">Send message</button>
+    </form>
+  </section>
+
+  {% if page.items %}
+  <section>
+    <h2 class="mb-3">Your messages</h2>
+    <ul class="notes">
+      {% for message in page.items %}
+      <li class="note note-block" id="message-{{ message.id }}">
+        <div class="note-text">
+          <h3 class="note-title">{{ message.subject }}</h3>
+          <p class="note-meta">{{ support_status(message.status.value) }} <span>Sent {{ message.created_at | local_datetime }}</span></p>
+          <p class="note-body">{{ message.body }}</p>
+          {% if message.admin_reply %}
+          <div class="reply">
+            <p class="note-meta"><strong>Reply</strong> <span>{{ message.replied_at | local_datetime }}</span></p>
+            <p class="note-body">{{ message.admin_reply }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {{ pagination(page) }}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

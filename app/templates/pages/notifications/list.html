@@ -1,0 +1,56 @@
+{% extends "layouts/app.html" %}
+{% from "components/ui.html" import empty_state, pagination, tabs %}
+{% block title %}Notifications - SellTrack{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Notifications</h1>
+  {% if unread %}
+  <form method="post" action="{{ url_for('notifications.mark_all_read') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-secondary" type="submit">Mark all as read</button>
+  </form>
+  {% endif %}
+</div>
+{{ tabs([
+  ('all', 'All', url_for('notifications.list_notifications')),
+  ('unread', 'Unread (' ~ unread ~ ')', url_for('notifications.list_notifications', show='unread')),
+], 'unread' if unread_only else 'all', 'Which notifications to show') }}
+
+<div id="notification-results" class="refresh-dims"
+     hx-target="#notification-results" hx-select="#notification-results" hx-swap="outerHTML"
+     hx-push-url="true" hx-indicator="#notification-results">
+  {% if page.items %}
+  <ul class="notes">
+    {% for note in page.items %}
+    <li class="note {{ 'note-unread' if not note.read_at }}">
+      <div class="note-text">
+        <h2 class="note-title">{{ note.title }}</h2>
+        {% if note.body %}<p class="note-body">{{ note.body }}</p>{% endif %}
+        <p class="note-meta">
+          {% if not note.read_at %}<span class="badge badge-info">Unread</span>{% endif %}
+          <span>{{ note.created_at | local_datetime }}</span>
+        </p>
+      </div>
+      {% if note.url or not note.read_at %}
+      <form method="post" class="button-row note-actions">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+        {% if note.url %}
+        <button class="btn btn-secondary btn-small" type="submit" formaction="{{ url_for('notifications.open_notification', notification_id=note.id) }}">View<span class="sr-only"> {{ note.title }}</span></button>
+        {% endif %}
+        {% if not note.read_at %}
+        <button class="btn btn-ghost btn-small" type="submit" formaction="{{ url_for('notifications.mark_read', notification_id=note.id) }}">Mark as read<span class="sr-only">: {{ note.title }}</span></button>
+        {% endif %}
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {{ pagination(page) }}
+  {% elif unread_only %}
+    <div class="panel">{{ empty_state("Nothing unread", "You're all caught up.", url_for('notifications.list_notifications'), "See all notifications") }}</div>
+  {% else %}
+    <div class="panel">{{ empty_state("No notifications yet", "Security alerts, settle-ups and replies from support will show up here.") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

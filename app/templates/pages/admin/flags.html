@@ -1,0 +1,50 @@
+{% extends "layouts/admin.html" %}
+{% from "components/forms.html" import field, error_summary %}
+{% from "components/ui.html" import empty_state %}
+{% block title %}Feature flags - SellTrack admin{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Feature flags</h1></div>
+
+<details class="panel add-panel mb-6" {% if form.errors or not rows %}open{% endif %}>
+  <summary class="add-summary">Add a flag</summary>
+  <div class="mt-4">
+    {{ error_summary(form) }}
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ field(form.key, hint="Lowercase letters, numbers, dots, dashes and underscores. It can't be changed later.", attrs={'autocomplete': 'off', 'maxlength': 64}) }}
+      {{ field(form.description, attrs={'autocomplete': 'off', 'maxlength': 500}) }}
+      <button class="btn btn-primary mt-5" type="submit">Add flag</button>
+    </form>
+  </div>
+</details>
+
+{% if rows %}
+<div class="table-wrap">
+  <table class="table table-stack" role="table">
+    <caption class="sr-only">Feature flags</caption>
+    <thead><tr role="row">
+      <th scope="col" role="columnheader">Name</th>
+      <th scope="col" role="columnheader">What it does</th>
+      <th scope="col" role="columnheader">State</th>
+      <th scope="col" role="columnheader" class="cell-num">Rollout</th>
+      <th scope="col" role="columnheader">Always on for</th>
+      <th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>
+    </tr></thead>
+    <tbody>
+      {% for flag, names in rows %}
+      <tr role="row">
+        <td role="cell" class="cell-title"><code>{{ flag.key }}</code></td>
+        <td role="cell" data-label="What it does" class="long-text">{{ flag.description }}</td>
+        <td role="cell" data-label="State">{% if flag.enabled %}<span class="badge badge-success">On</span>{% else %}<span class="badge badge-neutral">Off</span>{% endif %}</td>
+        <td role="cell" data-label="Rollout" class="cell-num">{{ flag.rollout_pct }}%</td>
+        <td role="cell" data-label="Always on for" class="long-text">{{ names | join(', ') }}</td>
+        <td role="cell" class="cell-actions"><a class="btn btn-ghost btn-small" href="{{ url_for('admin.edit_flag', flag_id=flag.id) }}">Edit<span class="sr-only"> {{ flag.key }}</span></a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="panel">{{ empty_state("No flags yet", "A flag lets you switch a feature on for some people before everyone.") }}</div>
+{% endif %}
+{% endblock %}

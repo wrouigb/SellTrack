@@ -367,7 +367,7 @@ class TestSettleUpRules:
         entry = db.session.scalar(select(AuditLog).where(AuditLog.action == "split.settled"))
         assert entry.actor_id == user_id
         assert entry.target_id == settlement.id
-        assert entry.details["money_in"] == "10.00"
+        assert entry.details == {"sales": 1, "costs": 0, "payments": 0}
         kinds = [n.kind for n in notifications.list_for(user_id)]
         assert Kind.SETTLED.value in kinds
 
@@ -662,16 +662,17 @@ class TestUndo:
 
     def test_keeps_an_audit_record_of_what_was_undone(self, user_id, product, alex, sam):
         worked_example(user_id, product, alex, sam)
-        settlement = split.settle_up(user_id, actor_id=user_id)
-        snapshot = settlement.snapshot
+        split.settle_up(user_id, actor_id=user_id)
         split.update_person(user_id, alex.id, name="Alex", share_pct="60")
         split.update_person(user_id, sam.id, name="Sam", share_pct="40")
         split.undo_last_settlement(user_id, actor_id=user_id)
         entry = db.session.scalar(
             select(AuditLog).where(AuditLog.action == "split.settlement_undone")
         )
-        assert entry.details["snapshot"] == snapshot
-        assert entry.details["shares_before_undo"] == {str(alex.id): "60.00", str(sam.id): "40.00"}
+        # Only IDs and percentages: the audit log outlives the account and the admin can read it.
+        assert entry.details == {
+            "shares_before_undo": {str(alex.id): "60.00", str(sam.id): "40.00"}
+        }
 
     def test_cannot_undo_another_accounts_settlement(self, user_id, product, alex, sam):
         sell(user_id, product, "10", received_by=sam)

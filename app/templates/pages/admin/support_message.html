@@ -1,0 +1,50 @@
+{% extends "layouts/admin.html" %}
+{% from "components/forms.html" import field, error_summary %}
+{% from "components/ui.html" import support_status %}
+{% block title %}{{ item.message.subject }} - SellTrack admin{% endblock %}
+{% block content %}
+<p class="mb-3"><a href="{{ url_for('admin.support_inbox') }}">Back to support</a></p>
+<div class="page-head">
+  <h1 class="long-text">{{ item.message.subject }}</h1>
+  {{ support_status(item.message.status.value) }}
+</div>
+<div class="stack page-narrow-block">
+  {{ error_summary(form) }}
+  <section class="panel">
+    <p class="note-meta mb-3">
+      <span>From <a href="{{ url_for('admin.user_detail', user_id=item.message.user_id) }}">{{ item.username }}</a></span>
+      <span>{{ item.message.created_at | local_datetime }}</span>
+    </p>
+    <p class="note-body">{{ item.message.body }}</p>
+  </section>
+
+  {% if item.message.status.value == 'closed' %}
+    {% if item.message.admin_reply %}
+    <section class="panel">
+      <h2 class="mb-2">Your reply</h2>
+      <p class="note-body">{{ item.message.admin_reply }}</p>
+    </section>
+    {% endif %}
+    <form method="post" action="{{ url_for('admin.reopen_support_message', message_id=item.message.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-secondary" type="submit">Reopen</button>
+    </form>
+  {% else %}
+  <section class="panel">
+    <h2 class="mb-1">{{ 'Change your reply' if item.message.admin_reply else 'Reply' }}</h2>
+    <p class="soft mb-4">{{ item.username }} will see this in their notifications, and they'll be told if you change it.</p>
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ field(form.reply, attrs={'rows': 6, 'maxlength': 5000}) }}
+      <div class="button-row mt-4">
+        <button class="btn btn-primary" type="submit">{{ 'Save and notify' if item.message.admin_reply else 'Send reply' }}</button>
+      </div>
+    </form>
+  </section>
+  <form method="post" action="{{ url_for('admin.close_support_message', message_id=item.message.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-secondary" type="submit">Close this message</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

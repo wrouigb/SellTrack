@@ -6,6 +6,8 @@ from flask import Blueprint, redirect, render_template, url_for
 from flask_login import current_user
 from werkzeug.wrappers import Response
 
+from app.forms.records import SupportForm
+
 bp = Blueprint("public", __name__)
 
 _MOVED_PERMANENTLY = 301
@@ -20,7 +22,9 @@ def landing() -> Response | str:
 
 @bp.get("/help")
 def help_page() -> str:
-    return render_template("pages/help.html")
+    # Only for someone who can use it: making a form puts a CSRF token in the session cookie.
+    form = SupportForm() if current_user.is_authenticated else None
+    return render_template("pages/help.html", support_form=form)
 
 
 @bp.get("/privacy")

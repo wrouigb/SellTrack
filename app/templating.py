@@ -13,6 +13,7 @@ from flask_login import current_user
 
 from app.models import DEFAULT_TIMEZONE, Theme
 from app.money import format_aud
+from app.services.notifications import unread_count
 
 
 def format_date(value: date | datetime | None) -> str:
@@ -52,17 +53,25 @@ def input_money(value: Decimal | None) -> str:
     return "" if value is None else str(value)
 
 
-def local_datetime(value: datetime | None) -> str:
+def _in_their_time_zone(value: datetime) -> datetime:
     """A moment in time, in the logged-in person's time zone."""
-    if value is None:
-        return ""
     name = current_user.timezone if current_user.is_authenticated else DEFAULT_TIMEZONE
     try:
         zone = ZoneInfo(name)
     except (ZoneInfoNotFoundError, ValueError):
         zone = ZoneInfo(DEFAULT_TIMEZONE)
-    local = value.astimezone(zone)
+    return value.astimezone(zone)
+
+
+def local_datetime(value: datetime | None) -> str:
+    if value is None:
+        return ""
+    local = _in_their_time_zone(value)
     return f"{local:%d/%m/%Y} {local:%-I:%M %p}".replace("AM", "am").replace("PM", "pm")
+
+
+def local_date(value: datetime | None) -> str:
+    return "" if value is None else format_date(_in_their_time_zone(value))
 
 
 def current_theme() -> str:
@@ -72,6 +81,13 @@ def current_theme() -> str:
     if current_user.is_authenticated:
         return str(current_user.theme.value)
     return Theme.SYSTEM.value
+
+
+def unread_notifications() -> int:
+    """The number on the bell. As with the theme, error pages don't look it up."""
+    if "_user_id" not in session or g.get("rendering_error") or not current_user.is_authenticated:
+        return 0
+    return unread_count(current_user.id)
 
 
 def url_with(**changes: Any) -> str:
@@ -95,5 +111,7 @@ def init_app(app: Flask) -> None:
     app.add_template_filter(input_money, "input_money")
     app.add_template_filter(format_date, "date")
     app.add_template_filter(local_datetime, "local_datetime")
+    app.add_template_filter(local_date, "local_date")
     app.jinja_env.globals["current_theme"] = current_theme
     app.jinja_env.globals["url_with"] = url_with
+    app.jinja_env.globals["unread_notifications"] = unread_notifications

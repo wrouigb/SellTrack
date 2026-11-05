@@ -4,9 +4,12 @@
 {% block tab_content %}
 <div class="stack page-narrow-block">
   <section class="panel">
-    <h2>Download your sales</h2>
-    <p class="soft mt-1 mb-4">A CSV file you can open in any spreadsheet.</p>
-    <a class="btn btn-secondary" href="{{ url_for('sales.export_csv') }}">Download sales CSV</a>
+    <h2>Download your data</h2>
+    <p class="soft mt-1 mb-4">Everything in this account, as a zip of CSV files you can open in any spreadsheet: sales, products, people, costs, payments, settle-ups, support messages, notifications and sign-ins. Your password and recovery codes aren't included.</p>
+    <div class="button-row">
+      <a class="btn btn-primary" href="{{ url_for('settings.export_everything') }}">Download everything</a>
+      <a class="btn btn-secondary" href="{{ url_for('sales.export_csv') }}">Just the sales</a>
+    </div>
   </section>
   <section class="panel">
     <h2>Delete your account</h2>

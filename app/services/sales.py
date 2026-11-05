@@ -20,6 +20,7 @@ from sqlalchemy import ColumnElement, Select, func, or_, select
 from app.extensions import db
 from app.models import Partner, Sale
 from app.money import MAX_AMOUNT
+from app.services import entitlements
 from app.services.errors import LockedError, NotFoundError
 from app.services.products import get_product, like_pattern
 from app.services.validation import (
@@ -121,6 +122,7 @@ def create_sale(
     if product is not None and clean_qty is not None and clean_price is not None:
         _check_fits(errors, clean_qty, clean_price, product.cost)
     errors.raise_if_any()
+    entitlements.check(user_id, entitlements.Limit.SALES)
 
     sold = checked(product)
     sale = Sale(

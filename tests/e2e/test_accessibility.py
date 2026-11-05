@@ -46,6 +46,10 @@ APP_PAGES = [
     "/app/settings/security/password",
     "/app/settings/preferences",
     "/app/settings/data",
+    "/app/notifications",
+    "/app/notifications?show=unread",
+    "/app/support",
+    "/help",
     "/onboarding",
     "/onboarding/people",
     "/onboarding/product",
@@ -61,7 +65,28 @@ EMPTY_ACCOUNT_PAGES = [
     "/app/split/payments",
     "/app/split/history",
     "/app/split/people",
+    "/app/notifications",
+    "/app/support",
     "/onboarding/sale",
+]
+ADMIN_PAGES = [
+    "/admin",
+    "/admin/users",
+    "/admin/users?q=nothing-matches-this",
+    "/admin/users/{user}",
+    "/admin/users/{admin}",
+    "/admin/support",
+    "/admin/support?status=all",
+    "/admin/support?q=nothing-matches-this",
+    "/admin/support/{waiting_message}",
+    "/admin/support/{answered_message}",
+    "/admin/announcements",
+    "/admin/audit",
+    "/admin/audit?action=auth.login",
+    "/admin/audit?actor=nobody",
+    "/admin/flags",
+    "/admin/flags/{flag}",
+    "/admin/system",
 ]
 
 
@@ -90,6 +115,12 @@ class TestEveryPage:
     @pytest.mark.parametrize("path", APP_PAGES)
     def test_app_pages(self, new_page, logged_in_state, data, path, dark, viewport):
         page = new_page(state=logged_in_state, viewport=viewport, dark=dark)
+        page.goto(_fill(path, data))
+        _check(page)
+
+    @pytest.mark.parametrize("path", ADMIN_PAGES)
+    def test_admin_pages(self, new_page, admin_state, data, path, dark, viewport):
+        page = new_page(state=admin_state, viewport=viewport, dark=dark)
         page.goto(_fill(path, data))
         _check(page)
 
@@ -131,6 +162,19 @@ class TestStatesThatOnlyAppearAfterSomething:
             page.goto(path)
             page.click(".add-summary")
             _check(page)
+
+    def test_admin_forms_with_errors(self, new_page, admin_state, data, dark, viewport):
+        page = new_page(state=admin_state, viewport=viewport, dark=dark)
+        page.goto(f"/admin/support/{data['waiting_message']}")
+        page.fill("#reply", "")
+        page.click("main form button[type=submit] >> text=Send reply")
+        page.wait_for_selector(".error-summary")
+        _check(page)
+        page.goto(f"/admin/flags/{data['flag']}")
+        page.fill("#rollout_pct", "500")
+        page.click("text=Save flag")
+        page.wait_for_selector(".error-summary")
+        _check(page)
 
     def test_chart_table_open(self, new_page, logged_in_state, dark, viewport):
         page = new_page(state=logged_in_state, viewport=viewport, dark=dark)
@@ -203,6 +247,8 @@ class TestKeyboard:
             "/app/split",
             "/app/split/people",
             "/app/settings/security",
+            "/app/notifications",
+            "/app/support",
         ],
     )
     @pytest.mark.parametrize("viewport", [DESKTOP, PHONE], ids=["desktop", "phone"])
