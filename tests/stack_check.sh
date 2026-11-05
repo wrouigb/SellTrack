@@ -38,10 +38,14 @@ as_superuser() {
 }
 step() { printf '\n== %s\n' "$*"; }
 show_logs() {
-    compose ps --all
-    compose logs --tail=40
+    local status=$? line=$1 command=$2
+    trap - ERR
+    compose logs --tail=15 || true
+    compose ps --all || true
+    echo "FAILED, at line $line: $command" >&2
+    exit "$status"
 }
-trap show_logs ERR
+trap 'show_logs "$LINENO" "$BASH_COMMAND"' ERR
 
 step "database, roles and migrations, in the order a deploy does them"
 compose up --detach --wait db redis
@@ -84,7 +88,7 @@ fi
 
 step "a backup"
 compose run --rm backup --once
-dump=$(find "$stack/backups" -name 'selltrack-*.dump' | head -n 1)
+dump=$(find "$stack/backups" -name 'selltrack-*.dump' | sort | tail -n 1)
 test -s "$dump"
 test "$(stat -c %a "$dump")" = 600
 
