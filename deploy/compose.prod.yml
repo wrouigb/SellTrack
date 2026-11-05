@@ -1,0 +1,204 @@
+# The stack on a Raspberry Pi or a VPS. pi-deploy.sh runs this with IMAGE_TAG set, using the copy
+# of this file from the image it's deploying, so the two can never get out of step.
+#
+# The app can only be reached through Nginx, which only listens on this machine. A tunnel provides
+# public HTTPS, and neither the database nor Redis has a published port.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    # An SD card shouldn't fill up with logs.
+    max-size: 10m
+    max-file: "3"
+
+x-locked-down: &locked-down
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  logging: *logging
+
+x-app-settings: &app-settings
+  APP_ENV: ${APP_ENV:-production}
+  SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+  DATABASE_URL: postgresql://selltrack_app:${DB_APP_PASSWORD:?Set DB_APP_PASSWORD in .env}@db:5432/selltrack
+  REDIS_URL: redis://redis:6379/0
+  TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-2}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  WEB_WORKERS: ${WEB_WORKERS:-2}
+  WEB_THREADS: ${WEB_THREADS:-4}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  BACKUP_DIR: /backups
+
+x-app-image: &app-image "${IMAGE_REPO:?Set IMAGE_REPO in .env}:${IMAGE_TAG:?Set IMAGE_TAG}"
+
+services:
+  nginx:
+    <<: *locked-down
+    image: "${IMAGE_REPO}-nginx:${IMAGE_TAG}"
+    ports:
+      - 127.0.0.1:${HTTP_PORT:-8080}:8080
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 64m
+    depends_on:
+      web:
+        condition: service_healthy
+
+  web:
+    <<: *locked-down
+    image: *app-image
+    environment: *app-settings
+    tmpfs:
+      # Big enough to build a data export in.
+      - /tmp:size=128m,mode=1777
+    volumes:
+      - ${BACKUP_PATH:-./backups}:/backups:ro
+    # Each password check takes 64 MiB while it runs, so this allows for a burst of logins.
+    mem_limit: 640m
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  scheduler:
+    <<: *locked-down
+    image: *app-image
+    command: ["flask", "jobs", "scheduler"]
+    environment: *app-settings
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    # The image's own check is for the web server. There's nothing to ask a scheduler: if it stops,
+    # so does its container. But `up --wait` refuses to run with a check that's turned off.
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 10s
+    mem_limit: 192m
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-trixie
+    restart: unless-stopped
+    logging: *logging
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: selltrack
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # Over TCP, because while the image is setting up the database it only listens on a socket.
+      test: ["CMD", "pg_isready", "--host=127.0.0.1", "--username=postgres", "--dbname=selltrack"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    stop_grace_period: 60s
+    mem_limit: 768m
+
+  redis:
+    <<: *locked-down
+    image: redis:7-alpine
+    # As itself from the start, because with no capabilities the image can't switch to it later.
+    user: redis
+    # Only rate-limit counters and cached figures, so nothing here needs saving. Under pressure it
+    # drops the oldest, which at worst means a figure is worked out again.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    tmpfs:
+      - /data:size=8m,mode=1777
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 128m
+
+  backup:
+    <<: *locked-down
+    image: postgres:16-trixie
+    user: ${BACKUP_UID:-1000}
+    entrypoint: ["sh", "/backup.sh"]
+    environment:
+      PGHOST: db
+      PGDATABASE: selltrack
+      PGUSER: selltrack_backup
+      PGPASSWORD: ${DB_BACKUP_PASSWORD:?Set DB_BACKUP_PASSWORD in .env}
+      BACKUP_DIR: /backups
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      BACKUP_HOUR_UTC: ${BACKUP_HOUR_UTC:-16}
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - ${BACKUP_PATH:-./backups}:/backups
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 256m
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # -- One-off jobs, run by pi-deploy.sh ----------------------------------------------------------
+
+  db-roles:
+    profiles: [jobs]
+    image: postgres:16-trixie
+    restart: "no"
+    logging: *logging
+    security_opt: ["no-new-privileges:true"]
+    entrypoint: ["psql", "--quiet", "--file=/db-roles.sql"]
+    environment:
+      PGHOST: db
+      PGDATABASE: selltrack
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      DB_MIGRATOR_PASSWORD: ${DB_MIGRATOR_PASSWORD:?Set DB_MIGRATOR_PASSWORD in .env}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?Set DB_APP_PASSWORD in .env}
+      DB_BACKUP_PASSWORD: ${DB_BACKUP_PASSWORD:?Set DB_BACKUP_PASSWORD in .env}
+    volumes:
+      - ./db-roles.sql:/db-roles.sql:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  migrate:
+    <<: *locked-down
+    profiles: [jobs]
+    restart: "no"
+    image: *app-image
+    command: ["flask", "jobs", "migrate"]
+    environment:
+      <<: *app-settings
+      # The only thing that connects as the role that can change the schema.
+      DATABASE_URL: postgresql://selltrack_migrator:${DB_MIGRATOR_PASSWORD:?Set DB_MIGRATOR_PASSWORD in .env}@db:5432/selltrack
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+
+  smoke:
+    <<: *locked-down
+    profiles: [jobs]
+    restart: "no"
+    image: *app-image
+    entrypoint: ["sh", "-c", "flask users ensure-smoke-account && exec python deploy/smoke.py --base-url http://nginx:8080"]
+    environment:
+      <<: *app-settings
+      SMOKE_USERNAME: ${SMOKE_USERNAME:-}
+      SMOKE_PASSWORD: ${SMOKE_PASSWORD:-}
+    volumes:
+      - ${BACKUP_PATH:-./backups}:/backups:ro
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    healthcheck:
+      disable: true
+    depends_on:
+      nginx:
+        condition: service_healthy
+
+volumes:
+  db-data:

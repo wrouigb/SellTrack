@@ -1,0 +1,17 @@
+# One deploy check for one stack: selltrack-deploy@prod looks after /opt/selltrack/prod.
+[Unit]
+Description=Deploy SellTrack (%i) if a new release is available
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=selltrack
+Group=selltrack
+# Where its login to the container registry is kept.
+Environment=HOME=/home/selltrack
+ExecStart=/opt/selltrack/pi-deploy.sh /opt/selltrack/%i
+TimeoutStartSec=20min
+# Deploys shouldn't get in the way of whatever's serving people on a small machine.
+Nice=10

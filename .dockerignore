@@ -1,0 +1,24 @@
+# Only what the images need goes into the build. Anything left out here can't leak into an image.
+.git
+.github
+.venv
+.env
+.env.*
+!.env.example
+node_modules
+app/static/dist
+app/static/src/.tailwind-output.css
+**/__pycache__
+**/*.py[cod]
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.coverage
+coverage.xml
+htmlcov
+tests
+docs
+*.md
+Makefile
+docker-compose.yml
+.pre-commit-config.yaml

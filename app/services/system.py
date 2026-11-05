@@ -46,7 +46,7 @@ class Disk:
 
 @dataclass(frozen=True, slots=True)
 class Backup:
-    """The newest file in the backup folder. Nothing's checked about what's inside it."""
+    """The newest finished file in the backup folder. Nothing's checked about what's inside it."""
 
     configured: bool
     last_at: datetime | None = None
@@ -123,7 +123,8 @@ def last_backup(folder: Path | None, *, now: datetime | None = None) -> Backup:
     try:
         with os.scandir(folder) as entries:
             for entry in entries:
-                if entry.is_file(follow_symlinks=False):
+                # backup.sh writes to a dotfile, and only renames it once it has been checked.
+                if entry.is_file(follow_symlinks=False) and not entry.name.startswith("."):
                     details = entry.stat(follow_symlinks=False)
                     if newest is None or details.st_mtime > newest.st_mtime:
                         newest = details

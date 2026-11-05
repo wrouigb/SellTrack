@@ -31,6 +31,12 @@ class TestSaleForm:
         assert form.input_value("#price_paid") == "72.00"
         assert form.inner_text(".profit-preview strong") == "$52.50"
 
+    def test_a_product_chosen_in_advance_fills_in_the_price(self, new_page, logged_in_state, data):
+        page = new_page(state=logged_in_state)
+        page.goto(f"/app/sales/new?product={data['product']}")
+        assert page.input_value("#price_paid") == "24.00"
+        assert page.inner_text(".profit-preview strong") == "$17.50"
+
     def test_your_own_price_is_not_overwritten(self, form):
         form.select_option("#product_id", label="Stamp set")
         form.fill("#price_paid", "20")

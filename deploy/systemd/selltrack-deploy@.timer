@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for a new SellTrack (%i) release every two minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=2min
+RandomizedDelaySec=15s
+
+[Install]
+WantedBy=timers.target

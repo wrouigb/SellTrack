@@ -192,6 +192,13 @@ def change_password(user: User, current_password: str, new_password: str) -> Non
     db.session.commit()
 
 
+def set_password_from_command_line(user: User, new_password: str) -> None:
+    """For someone with access to the server, who is not asked for the old one. Audit-logged."""
+    _set_password(user, new_password)
+    audit.record("auth.password_changed", target_type="user", target_id=user.id)
+    db.session.commit()
+
+
 def _set_password(user: User, new_password: str) -> None:
     if problem := passwords.password_problem(new_password or "", user.username):
         raise ValidationFailed(new_password=problem)

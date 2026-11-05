@@ -1,0 +1,25 @@
+# Weekly suggestions for updates, each as a pull request that CI has to pass.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      javascript:
+        patterns: ["*"]
