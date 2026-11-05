@@ -34,6 +34,12 @@
   <form method="post" action="{{ url_for('sales.bulk_delete') }}" x-data="bulkSelect" x-on:change="recount">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+    <noscript>
+      <div class="bulk-bar">
+        <span>Tick the sales you want to delete, then</span>
+        <button class="btn btn-danger btn-small" type="submit">Delete ticked sales</button>
+      </div>
+    </noscript>
     <div class="bulk-bar" x-show="selected" x-cloak>
       <span x-text="countLabel"></span>
       <button class="btn btn-danger btn-small" type="submit" data-confirm="Delete the selected sales? You can undo this straight after." data-confirm-label="Delete sales">Delete selected</button>

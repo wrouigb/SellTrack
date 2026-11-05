@@ -591,6 +591,13 @@
     font-size: 1rem;
   }
 
+  /* Always a ring, however focus arrived. Date boxes have focusable parts inside themselves. */
+  .input:focus,
+  .input:focus-within {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
   .input[aria-invalid="true"] {
     border-color: var(--danger);
     border-width: 2px;

@@ -118,7 +118,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     boxes() {
-      return [...this.$el.querySelectorAll('input[type="checkbox"][data-row]')];
+      return [...this.$root.querySelectorAll('input[type="checkbox"][data-row]')];
     },
 
     recount() {
@@ -126,7 +126,7 @@ document.addEventListener("alpine:init", () => {
     },
 
     toggleAll() {
-      const on = this.$el.querySelector("[data-all]").checked;
+      const on = this.$root.querySelector("[data-all]").checked;
       for (const box of this.boxes()) {
         box.checked = on;
       }

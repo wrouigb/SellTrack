@@ -53,7 +53,7 @@
             <td role="cell" data-label="Share of profit" class="cell-num">{{ person.share_of_profit | snapshot_money }}</td>
             <td role="cell" data-label="Should end with" class="cell-num">{{ person.should_end_with | snapshot_money }}</td>
             <td role="cell" data-label="Holding" class="cell-num">{{ person.holding | snapshot_money }}</td>
-            <td role="cell" data-label="Balance" class="cell-num">{{ person.balance | snapshot_money }}</td>
+            <td role="cell" data-label="Balance" class="cell-num">{{ person.balance | snapshot_balance }}</td>
           </tr>
           {% endfor %}
         </tbody>

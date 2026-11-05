@@ -36,8 +36,8 @@
     {{ toasts() }}
     {% block content %}{% endblock %}
   </div>
+  <a class="btn btn-primary fab" href="{{ url_for('sales.new_sale') }}">{{ icon('plus') }} Sale</a>
 </main>
-<a class="btn btn-primary fab" href="{{ url_for('sales.new_sale') }}">{{ icon('plus') }} Sale</a>
 <nav class="tabbar" aria-label="Main, on small screens">
   <a href="{{ url_for('dashboard.home') }}" {% if section == 'dashboard' %}aria-current="page"{% endif %}>{{ icon('home') }} Overview</a>
   <a href="{{ url_for('sales.list_sales') }}" {% if section == 'sales' %}aria-current="page"{% endif %}>{{ icon('receipt') }} Sales</a>

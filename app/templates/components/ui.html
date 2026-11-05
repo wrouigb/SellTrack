@@ -28,6 +28,7 @@
             <form method="post" action="{{ url_for('sales.restore') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               {% for sale_id in undo %}<input type="hidden" name="ids" value="{{ sale_id }}">{% endfor %}
+              <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
               <button class="btn btn-secondary btn-small" type="submit">Undo</button>
             </form>
             {% endif %}

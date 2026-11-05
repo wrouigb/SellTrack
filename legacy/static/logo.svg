@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- price tag -->
-  <path d="M10 12 H52 L92 52 L52 92 L10 52 Z" fill="#f5f0e6" stroke="#14324f" stroke-width="4" stroke-linejoin="round"/>
-  <circle cx="28" cy="30" r="7" fill="#1f4e79"/>
-  <text x="50" y="62" text-anchor="middle" font-family="Georgia, serif" font-size="34" font-weight="bold" fill="#1f4e79" transform="rotate(-0 50 62)">$</text>
-</svg>

@@ -29,8 +29,16 @@ All notable changes to SellTrack are recorded here. The format follows
 - `/healthz` and `/readyz`, JSON logs with request IDs, friendly error pages and optional Sentry.
 - Integration tests on real Postgres and Redis.
 
+- The designed pages: dashboard, sales, products, the five split tabs, settings, onboarding,
+  landing, help, privacy, terms and error pages, in light and dark, usable from 360px wide and
+  with JavaScript turned off.
+- The dashboard: period selector, figures with their change, a chart of money in and profit, top
+  products, latest sales, who owes whom, and next steps.
+- Sales list: filters, sorting, paging, bulk delete with undo, and CSV download. Spreadsheet
+  formulas in customer names and notes are defused in the file.
+
 ### Changed
-- The original app moved to `legacy/` while it is rebuilt.
+- The original app has been replaced. Its old addresses redirect to the new ones.
 - Even splits now total exactly 100%, and all money is exact to the cent.
 - Product search and sale search ignore case and treat `%` and `_` as ordinary characters.
 
@@ -41,3 +49,6 @@ All notable changes to SellTrack are recorded here. The format follows
   cookies, revocable sessions, a strict Content Security Policy and other security headers.
 - Failed logins take the same time and give the same message whether or not the username exists.
 - Product names are unique at the database level, not just in Python.
+- Confirmations use a native dialog with the message set as text, so a product name can't inject
+  script, which the original's inline `confirm()` allowed.
+- Pages aren't kept in browser storage, so a shared computer can't show them later.

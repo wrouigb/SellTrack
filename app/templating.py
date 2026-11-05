@@ -33,6 +33,16 @@ def snapshot_money(value: str) -> str:
     return format_aud(Decimal(value))
 
 
+def snapshot_balance(value: str) -> str:
+    """A saved balance in words, as it's shown everywhere else."""
+    amount = Decimal(value)
+    if amount > 0:
+        return f"Owed {format_aud(amount)}"
+    if amount < 0:
+        return f"Owes {format_aud(-amount)}"
+    return "Square"
+
+
 def percent(value: Decimal | None) -> str:
     return "" if value is None else f"{value}%"
 
@@ -80,6 +90,7 @@ def init_app(app: Flask) -> None:
     app.add_template_filter(money, "money")
     app.add_template_filter(signed_money, "signed_money")
     app.add_template_filter(snapshot_money, "snapshot_money")
+    app.add_template_filter(snapshot_balance, "snapshot_balance")
     app.add_template_filter(percent, "percent")
     app.add_template_filter(input_money, "input_money")
     app.add_template_filter(format_date, "date")

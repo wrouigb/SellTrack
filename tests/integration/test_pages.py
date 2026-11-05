@@ -800,6 +800,8 @@ class TestSplitOverview:
         assert "Settled up. The tally is back to $0.00." in html
         assert "Sam paid Alex" in html
         assert "Undo this settle-up" in html
+        assert "Owed $32.50" in html, "balances are in words, not just a sign or a colour"
+        assert "Owes $32.50" in html
         assert "Everyone is square" in client.get("/app/split").text
 
         with app.app_context():

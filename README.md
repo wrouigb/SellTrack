@@ -2,10 +2,8 @@
 
 Track what you sell, see what you make, and split the profit fairly.
 
-> **Status: being rebuilt for production.** The backend is done (phase 3 of the plan in
-> [`docs/plan.md`](docs/plan.md)). The pages are placeholders until phase 4, so the sales,
-> products and split features can only be used through their services for now. The original
-> Flask/SQLite app is kept in [`legacy/`](legacy/) as the reference for those pages.
+> **Status: being rebuilt for production.** The backend and the pages are done (phases 3 and 4 of
+> the plan in [`docs/plan.md`](docs/plan.md)). The admin console, Docker and deployment come next.
 
 ## What's here
 
@@ -17,15 +15,20 @@ Track what you sell, see what you make, and split the profit fairly.
 | `app/money.py` | Exact AUD money: strict parsing, whole cents, en-AU formatting, totals that never lose a cent |
 | `app/services/` | The business rules: accounts, products, sales, reporting, the profit split, notifications, feature flags, audit log |
 | `app/security/` | Sessions, passwords (Argon2id), permissions, security headers, rate limits |
-| `app/blueprints/`, `app/forms/`, `app/templates/` | Thin routes and plain pages for sign-up, login, recovery and account security |
-| `tests/` | Unit tests, and integration tests on real Postgres and Redis |
+| `app/blueprints/`, `app/forms/` | Thin routes and forms |
+| `app/templates/` | Pages, built from the components in `app/templates/components/` |
+| `app/static/src/` | The design tokens and styles (`app.css`) and the small amount of JavaScript (`app.js`) |
+| `app/charts.py` | The geometry of the dashboard's chart, drawn on the server as SVG |
+| `tests/` | Unit tests, integration tests on real Postgres and Redis, and browser tests |
 
 ## Setting up
 
-You need Python 3.12+, [uv](https://docs.astral.sh/uv/), PostgreSQL 16 and Redis.
+You need Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 22+, PostgreSQL 16 and Redis.
 
 ```bash
 uv sync
+npm ci
+npm run build
 cp .env.example .env
 
 # As a Postgres superuser. The role only needs to own its databases, not be a superuser.
@@ -39,6 +42,9 @@ uv run flask users create-admin
 uv run flask run --debug
 ```
 
+While changing styles or JavaScript, `npm run watch` rebuilds them as you save. The app picks up a
+rebuild by itself.
+
 ## Checks
 
 ```bash
@@ -51,6 +57,11 @@ Integration tests use `postgresql://selltrack:selltrack@localhost:5432/selltrack
 database 15. Override them with `TEST_DATABASE_URL` and `TEST_REDIS_URL`. They fail, rather than
 skip, when either service is down. The test database is wiped on every run, so the tests refuse
 to run against a database whose name doesn't contain `test`.
+
+Browser tests (`tests/e2e/`) run axe-core and keyboard checks on every page, in light and dark, at
+desktop width and at 360px. They run last, and need `npm run build` and a browser:
+`uv run playwright install chromium`, or set `E2E_CHROMIUM_PATH` to use a Chromium you already
+have. To skip them, use `uv run pytest -m "not e2e"`.
 
 ## Configuration
 
