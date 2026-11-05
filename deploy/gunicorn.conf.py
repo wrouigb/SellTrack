@@ -22,8 +22,8 @@ max_requests_jitter = 200
 # The file system is read-only, and the heartbeat file has to live somewhere fast.
 worker_tmp_dir = "/dev/shm"  # noqa: S108 - in memory, and private to this container
 
-# Gunicorn's runtime control socket isn't used, and needs somewhere to write. Off means nothing extra
-# to secure.
+# Gunicorn's runtime control socket isn't used, and it needs somewhere to write. Off means there's
+# nothing extra to secure.
 control_socket_disable = True
 
 # The app logs every request itself, as JSON with a request ID.
