@@ -138,7 +138,8 @@ document.addEventListener("alpine:init", () => {
     },
 
     get countLabel() {
-      return this.count === 1 ? "1 sale selected" : `${this.count} sales selected`;
+      const noun = this.$root.dataset.noun ?? "sale";
+      return `${this.count} ${noun}${this.count === 1 ? "" : "s"} selected`;
     },
   }));
 

@@ -8,7 +8,9 @@
     </a>
     <span class="ml-auto"></span>
     <a class="nav-link" href="{{ url_for('public.help_page') }}">Help</a>
-    {% if not hide_auth_links %}
+    {% if current_user.is_authenticated %}
+      <a class="nav-link" href="{{ url_for('dashboard.home') }}">Open the app</a>
+    {% elif not hide_auth_links %}
       <a class="nav-link" href="{{ url_for('auth.login') }}">Log in</a>
     {% endif %}
   </div>

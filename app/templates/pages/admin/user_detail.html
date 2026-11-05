@@ -1,0 +1,103 @@
+{% extends "layouts/admin.html" %}
+{% from "pages/admin/_audit_table.html" import detail_text %}
+{% block title %}{{ user.username }} - SellTrack admin{% endblock %}
+{% block content %}
+<p class="mb-3"><a href="{{ url_for('admin.users') }}">Back to accounts</a></p>
+<div class="page-head">
+  <h1>{{ user.username }}</h1>
+  <span class="button-row">
+    {% if user.is_admin %}<span class="badge badge-info">Admin</span>{% endif %}
+    {% if user.status.value == 'suspended' %}<span class="badge badge-danger">Suspended</span>{% else %}<span class="badge badge-success">Active</span>{% endif %}
+  </span>
+</div>
+<div class="stack">
+  <div class="two-up">
+    <section class="panel">
+      <h2 class="mb-3">Account</h2>
+      <div class="detail-list">
+        <div class="detail-row"><span>Joined</span><span class="num">{{ user.created_at | local_datetime }}</span></div>
+        <div class="detail-row"><span>Last login</span><span class="num">{{ user.last_login_at | local_datetime if user.last_login_at else 'Never' }}</span></div>
+        <div class="detail-row"><span>Time zone</span><span>{{ user.timezone | replace('_', ' ') }}</span></div>
+        <div class="detail-row"><span>Must change password</span><span>{{ 'Yes' if user.must_change_password else 'No' }}</span></div>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Activity</h2>
+      <p class="soft mt-1 mb-3">How many records this account has. What's in them stays private.</p>
+      <div class="detail-list">
+        <div class="detail-row"><span>Sales</span><span class="num">{{ counts.sales }}</span></div>
+        <div class="detail-row"><span>Products</span><span class="num">{{ counts.products }}</span></div>
+        <div class="detail-row"><span>People in the split</span><span class="num">{{ counts.people }}</span></div>
+        <div class="detail-row"><span>Upfront costs</span><span class="num">{{ counts.upfront_costs }}</span></div>
+        <div class="detail-row"><span>Payments</span><span class="num">{{ counts.payments }}</span></div>
+        <div class="detail-row"><span>Settle-ups</span><span class="num">{{ counts.settle_ups }}</span></div>
+        <div class="detail-row"><span>Sign-ins</span><span class="num">{{ counts.sign_ins }}</span></div>
+        <div class="detail-row"><span>Support messages</span><span class="num">{{ counts.support_messages }}</span></div>
+        <div class="detail-row"><span>Notifications</span><span class="num">{{ counts.notifications }}</span></div>
+      </div>
+    </section>
+  </div>
+
+  {% if user.id != current_user.id %}
+  <div class="two-up">
+    <section class="panel">
+      {% if user.status.value == 'suspended' %}
+      <h2>Reactivate</h2>
+      <p class="soft mt-1 mb-4">They'll be able to log in again.</p>
+      <form method="post" action="{{ url_for('admin.reactivate_user', user_id=user.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-secondary" type="submit">Reactivate account</button>
+      </form>
+      {% else %}
+      <h2>Suspend</h2>
+      <p class="soft mt-1 mb-4">Logs them out everywhere and stops them logging in. Nothing's deleted.</p>
+      <form method="post" action="{{ url_for('admin.suspend_user', user_id=user.id) }}" data-confirm="Suspend {{ user.username }}? They'll be logged out and won't be able to log in." data-confirm-label="Suspend account">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-danger" type="submit">Suspend account</button>
+      </form>
+      {% endif %}
+    </section>
+    <section class="panel">
+      <h2>Reset password</h2>
+      <p class="soft mt-1 mb-4">For someone who has lost both their password and their recovery codes. You'll get a temporary password to pass on, which they have to change when they log in.</p>
+      <form method="post" action="{{ url_for('admin.reset_password', user_id=user.id) }}" data-confirm="Reset the password for {{ user.username }}? They'll be logged out everywhere." data-confirm-label="Reset password">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-secondary" type="submit">Reset password</button>
+      </form>
+    </section>
+  </div>
+  {% else %}
+  <div class="notice" role="note">This is your own account. Change your password under <a href="{{ url_for('settings.security') }}">Settings</a>.</div>
+  {% endif %}
+
+  <section>
+    <h2 class="mb-3">Recent activity</h2>
+    {% if activity %}
+    <div class="table-wrap">
+      <table class="table table-stack" role="table">
+        <caption class="sr-only">What this account did most recently, and what was done to it</caption>
+        <thead><tr role="row">
+          <th scope="col" role="columnheader">When</th>
+          <th scope="col" role="columnheader">What</th>
+          <th scope="col" role="columnheader">From</th>
+          <th scope="col" role="columnheader">Details</th>
+        </tr></thead>
+        <tbody>
+          {% for row in activity %}
+          <tr role="row">
+            <td role="cell" class="cell-title num whitespace-nowrap">{{ row.entry.created_at | local_datetime }}</td>
+            <td role="cell" data-label="What">{{ row.label }}</td>
+            <td role="cell" data-label="From" class="num">{{ row.entry.ip or '' }}</td>
+            <td role="cell" data-label="Details">{{ detail_text(row.details) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="soft">Nothing recorded yet.</p>
+    {% endif %}
+    <p class="mt-3"><a href="{{ url_for('admin.audit_log', actor=user.username) }}">See everything in the audit log</a></p>
+  </section>
+</div>
+{% endblock %}

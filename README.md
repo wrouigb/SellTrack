@@ -2,8 +2,8 @@
 
 Track what you sell, see what you make, and split the profit fairly.
 
-> **Status: being rebuilt for production.** The backend and the pages are done (phases 3 and 4 of
-> the plan in [`docs/plan.md`](docs/plan.md)). The admin console, Docker and deployment come next.
+> **Status: being rebuilt for production.** The backend, the pages and the admin console are done
+> (phases 3 to 5 of the plan in [`docs/plan.md`](docs/plan.md)). Docker and deployment come next.
 
 ## What's here
 
@@ -69,3 +69,24 @@ Every setting is listed and explained in [`.env.example`](.env.example). `APP_EN
 `development`, `testing`, `staging` and `production`.
 
 Docker, deployment and full documentation arrive in phase 6.
+
+## Admin and background jobs
+
+```bash
+uv run flask users create-admin   # the first admin; the console is at /admin
+uv run flask jobs scheduler       # keeps running: does the nightly cleanup, and stops on SIGTERM
+uv run flask jobs cleanup         # the same cleanup, once, right now
+```
+
+The cleanup removes sales deleted over 30 days ago, sign-ins older than 90 days (apart from each
+account's latest 20) and read notifications older than 180 days. The privacy page promises this, so
+keep them in step. It runs at 17:00 UTC, or as soon as the scheduler is back if it was down then.
+
+The admin console shows account details and counts, never what's in an account. Audit entries hold
+no customer names, names of people in a split, or amounts, because they outlive the account. Admin
+pages only show the detail fields listed in `_VISIBLE_DETAILS` in `app/services/audit.py`.
+
+Dashboard totals are cached in Redis for up to five minutes. A commit that touches an account's
+sales, costs or products makes its cached figures unreachable straight away. See
+`app/figures_cache.py`. A bulk `update()` that changes figures without a changed `Sale`, `UpfrontCost`
+or `Product` in the same transaction needs `figures_cache.forget(user_id)`.

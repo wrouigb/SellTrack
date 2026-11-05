@@ -1,0 +1,25 @@
+{% extends "layouts/admin.html" %}
+{% from "components/forms.html" import field, error_summary %}
+{% block title %}{{ flag.key }} - SellTrack admin{% endblock %}
+{% block content %}
+<p class="mb-3"><a href="{{ url_for('admin.feature_flags') }}">Back to feature flags</a></p>
+<div class="page-head"><h1><code>{{ flag.key }}</code></h1></div>
+<div class="stack page-narrow-block">
+  <section class="panel">
+    {{ error_summary(form) }}
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="check mb-4">{{ form.enabled() }} {{ form.enabled.label.text }}</label>
+      <p class="hint mb-4">Off means off for everyone, including anyone in the list below.</p>
+      {{ field(form.description, attrs={'autocomplete': 'off', 'maxlength': 500}) }}
+      {{ field(form.rollout_pct, hint="The share of accounts that get it. Raising this only ever adds people.", attrs={'inputmode': 'numeric'}) }}
+      {{ field(form.allow_users, hint="Usernames, separated by commas. These accounts get it whatever the percentage.", attrs={'rows': 2, 'autocomplete': 'off'}) }}
+      <button class="btn btn-primary mt-5" type="submit">Save flag</button>
+    </form>
+  </section>
+  <form method="post" action="{{ url_for('admin.delete_flag', flag_id=flag.id) }}" data-confirm="Delete the flag {{ flag.key }}? The feature will be off for everyone." data-confirm-label="Delete flag">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-secondary" type="submit">Delete flag</button>
+  </form>
+</div>
+{% endblock %}

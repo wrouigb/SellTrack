@@ -10,6 +10,7 @@
   {%- elif name == 'chevron' %}<path d="m7 10 5 5 5-5"/>
   {%- elif name == 'up' %}<path d="M12 19V5M6 11l6-6 6 6"/>
   {%- elif name == 'down' %}<path d="M12 5v14M6 13l6 6 6-6"/>
+  {%- elif name == 'bell' %}<path d="M6 16.500V11a6 6 0 1 1 12 0v5.500l1.500 2h-15zM10 21.500h4"/>
   {%- endif %}
 </svg>
 {%- endmacro %}
@@ -39,6 +40,40 @@
     </div>
     {% endif %}
   {% endwith %}
+{% endmacro %}
+
+{# The account menu in the top band. Works with no JavaScript, because it's a <details>. #}
+{% macro account_menu(username, is_admin, in_admin=False) %}
+<details class="menu" x-data="menu" x-on:click.outside="closeQuietly" x-on:keydown.escape="close">
+  <summary aria-label="Account menu for {{ username }}">
+    <span class="menu-name">{{ username }}</span>
+    {{ icon('chevron') }}
+  </summary>
+  <div class="menu-list">
+    {% if in_admin %}<a href="{{ url_for('dashboard.home') }}">Back to the app</a>
+    {% elif is_admin %}<a href="{{ url_for('admin.overview') }}">Admin</a>{% endif %}
+    <a href="{{ url_for('settings.account') }}">Settings</a>
+    <a href="{{ url_for('support.messages') }}">Support</a>
+    <a href="{{ url_for('public.help_page') }}">Help</a>
+    <form method="post" action="{{ url_for('auth.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">Log out</button>
+    </form>
+  </div>
+</details>
+{% endmacro %}
+
+{% macro bell(count) %}
+<a class="bell" href="{{ url_for('notifications.list_notifications') }}">
+  {{ icon('bell') }}
+  {% include "components/bell_count.html" %}
+</a>
+{% endmacro %}
+
+{% macro support_status(status) %}
+  {% if status == 'open' %}<span class="badge badge-warning">Waiting for a reply</span>
+  {% elif status == 'answered' %}<span class="badge badge-success">Answered</span>
+  {% else %}<span class="badge badge-neutral">Closed</span>{% endif %}
 {% endmacro %}
 
 {% macro confirm_dialog() %}

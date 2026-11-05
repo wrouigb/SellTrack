@@ -1,0 +1,61 @@
+{# How the server is doing. A problem always says so in words, and never only with a colour. #}
+{% macro _status(good, good_text, bad_text) %}
+  {% if good %}<span class="badge badge-success">{{ good_text }}</span>
+  {% else %}<span class="badge badge-danger">{{ bad_text }}</span>{% endif %}
+{% endmacro %}
+
+{% macro health_list(health) %}
+<div class="detail-list">
+  <div class="detail-row">
+    <span>Database</span>
+    <span class="detail-value">
+      {{ _status(health.database_ok, 'Working', 'Not responding') }}
+      {% if health.database_bytes is not none %}<span class="soft num">{{ health.database_bytes | filesizeformat }}</span>{% endif %}
+    </span>
+  </div>
+  <div class="detail-row">
+    <span>Redis</span>
+    <span class="detail-value">
+      {% if health.redis == 'ok' %}<span class="badge badge-success">Working</span>
+      {% elif health.redis == 'not_configured' %}<span class="badge badge-neutral">Not set up</span>
+      {% else %}<span class="badge badge-danger">Not responding</span>{% endif %}
+    </span>
+  </div>
+  <div class="detail-row">
+    <span>Disk</span>
+    <span class="detail-value">
+      {% if health.disk %}
+        {{ _status(not health.disk.is_low, 'Plenty of room', 'Getting full') }}
+        <span class="soft num">{{ health.disk.free_bytes | filesizeformat }} free of {{ health.disk.total_bytes | filesizeformat }} ({{ health.disk.used_percent }}% used)</span>
+      {% else %}
+        <span class="badge badge-danger">Can't check</span>
+      {% endif %}
+    </span>
+  </div>
+  <div class="detail-row">
+    <span>Last backup</span>
+    <span class="detail-value">
+      {% if not health.backup.configured %}
+        <span class="badge badge-warning">Not set up</span>
+        <span class="soft">Set BACKUP_DIR to the folder backups go to.</span>
+      {% elif not health.backup.last_at %}
+        <span class="badge badge-danger">None found</span>
+      {% else %}
+        {{ _status(not health.backup.is_late, 'On time', 'Late') }}
+        <span class="soft num">{{ health.backup.last_at | local_datetime }} ({{ health.backup.size_bytes | filesizeformat }})</span>
+      {% endif %}
+    </span>
+  </div>
+  <div class="detail-row">
+    <span>Last cleanup</span>
+    <span class="detail-value">
+      {% if health.last_cleanup %}
+        {{ _status(not health.cleanup_is_late, 'On time', 'Late') }}
+        <span class="soft num">{{ health.last_cleanup | local_datetime }}</span>
+      {% else %}
+        <span class="badge badge-warning">Hasn't run yet</span>
+      {% endif %}
+    </span>
+  </div>
+</div>
+{% endmacro %}

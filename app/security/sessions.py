@@ -10,6 +10,7 @@ from __future__ import annotations
 from urllib.parse import urlsplit
 
 from flask import Flask, flash, redirect, request, session, url_for
+from flask.sessions import SecureCookieSessionInterface, SessionMixin
 from flask_login import current_user, login_user
 from werkzeug.wrappers import Response
 
@@ -22,12 +23,25 @@ _ALLOWED_WHILE_PASSWORD_EXPIRED = {
     "auth.logout",
     "health.healthz",
     "health.readyz",
+    "notifications.bell",
     "settings.change_password",
     "static",
 }
+#: Requests a page makes by itself, while nobody is necessarily there.
+_BACKGROUND_ENDPOINTS = {"notifications.bell"}
+
+
+class _SessionInterface(SecureCookieSessionInterface):
+    """A session lasts a week from when it was last used. A tab left open isn't using it."""
+
+    def should_set_cookie(self, app: Flask, session: SessionMixin) -> bool:
+        if request.endpoint in _BACKGROUND_ENDPOINTS:
+            return session.modified
+        return super().should_set_cookie(app, session)
 
 
 def init_app(app: Flask) -> None:
+    app.session_interface = _SessionInterface()
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Please log in first."
     login_manager.login_message_category = "error"

@@ -89,6 +89,11 @@ class SaleFilterForm(FlaskForm):
     received_by = SelectField("Received by", choices=[], validate_choice=False)
 
 
+class SupportForm(FlaskForm):
+    subject = StringField("Subject")
+    body = TextAreaField("Message")
+
+
 class ProductForm(FlaskForm):
     name = StringField("Name")
     cost = StringField("Cost per item")

@@ -28,9 +28,9 @@ def create_app(
 ) -> Flask:
     """Build the application. Raises ``ConfigError`` when the environment isn't safe to run."""
     # Imported here so that pure modules such as ``app.money`` don't drag in the web stack.
-    from app import assets, cli, errors, models, observability, templating  # noqa: F401
+    from app import assets, cli, errors, figures_cache, models, observability, templating  # noqa: F401
     from app.blueprints import register_blueprints
-    from app.extensions import csrf, db, limiter, login_manager, migrate
+    from app.extensions import cache, csrf, db, limiter, login_manager, migrate
     from app.security import headers, sessions
 
     app = Flask(__name__)
@@ -61,6 +61,7 @@ def create_app(
     migrate.init_app(app, db, compare_type=True, render_as_batch=False)
     csrf.init_app(app)
     limiter.init_app(app)
+    cache.init_app(app)
     login_manager.init_app(app)
     sessions.init_app(app)
     headers.init_app(app)

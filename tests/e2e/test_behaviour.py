@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import zipfile
+
 import pytest
 from playwright.sync_api import expect
 
-from tests.e2e.conftest import DESKTOP
+from app.extensions import db
+from app.services import auth, notifications
+from tests.e2e.conftest import ACCOUNT, DESKTOP
 from tests.factories import PASSWORD
 
 pytestmark = pytest.mark.e2e
@@ -347,3 +351,165 @@ class TestNoCspViolations:
         )
         assert blocked is True
         page.problems.clear()  # the one violation here was caused on purpose
+
+
+class TestNotificationBell:
+    def test_marking_all_read_clears_the_bell(self, new_page, browser, base_url, e2e_app, data):
+        _send_notification(e2e_app, data["user"], "Bell test")
+        page = new_page(state=_fresh_login(browser, base_url, ACCOUNT, PASSWORD))
+        page.goto("/app")
+        count = page.locator("#bell-count .bell-count")
+        assert count.is_visible()
+        page.click("a.bell")
+        page.wait_for_url("**/app/notifications")
+        expect(page.locator("text=Bell test").first).to_be_visible()
+        page.click("text=Mark all as read")
+        expect(page.locator("#bell-count .bell-count")).to_have_count(0)
+        expect(page.locator(".note-unread")).to_have_count(0)
+
+    def test_the_count_updates_by_itself_and_keeps_your_place(
+        self, new_page, browser, base_url, e2e_app, data
+    ):
+        page = new_page(state=_fresh_login(browser, base_url, ACCOUNT, PASSWORD))
+        page.clock.install()
+        page.goto("/app/settings")
+        page.focus("a.bell")
+        before = page.inner_text("#bell-count")
+
+        _send_notification(e2e_app, data["user"], "Arrived while you were looking")
+        page.clock.fast_forward(125_000)
+        page.wait_for_function(
+            "before => document.getElementById('bell-count').innerText !== before", arg=before
+        )
+        assert page.evaluate("document.activeElement.className") == "bell"
+
+
+class TestSupportRoundTrip:
+    def test_a_message_gets_a_reply(self, new_page, logged_in_state, admin_state):
+        person = new_page(state=logged_in_state)
+        person.goto("/help#contact")
+        person.fill("#subject", "Browser round trip")
+        person.fill("#body", "Line one\nLine two")
+        person.click("main form button[type=submit]")
+        person.wait_for_url("**/app/support")
+        expect(person.locator(".toast").first).to_contain_text("Message sent")
+
+        admin = new_page(state=admin_state)
+        admin.goto("/admin/support")
+        admin.click("a:has-text('Browser round trip')")
+        admin.fill("#reply", "Here is your answer")
+        admin.click("text=Send reply")
+        admin.wait_for_url("**/admin/support")
+        expect(admin.locator(".toast").first).to_contain_text("Reply sent to markets")
+
+        person.goto("/app/notifications")
+        note = person.locator(".note", has_text="Support replied: Browser round trip").first
+        expect(note).to_contain_text("Here is your answer")
+        note.locator("button:has-text('View')").click()
+        person.wait_for_url("**/app/support#message-*")
+        expect(person.locator(".reply").first).to_contain_text("Here is your answer")
+
+
+class TestAdminConsole:
+    def _account(self, e2e_app, name):
+        with e2e_app.app_context():
+            user_id = auth.register(name, PASSWORD).user.id
+            db.session.remove()
+        return user_id
+
+    def test_bulk_suspend_counts_then_asks_first(self, new_page, admin_state, e2e_app):
+        self._account(e2e_app, "bulk-one")
+        self._account(e2e_app, "bulk-two")
+        page = new_page(state=admin_state)
+        page.goto("/admin/users?q=bulk-")
+        expect(page.locator(".bulk-bar")).to_be_hidden()
+        page.click("label.row-check:has-text('Select all')")
+        expect(page.locator(".bulk-bar")).to_contain_text("2 accounts selected")
+        page.click("text=Suspend selected")
+        assert page.evaluate("document.getElementById('confirm-dialog').open") is True
+        page.click("#confirm-dialog [value=cancel]")
+        expect(page.locator("#user-results .badge-danger")).to_have_count(0)
+
+        page.click("text=Suspend selected")
+        page.click("#confirm-dialog [data-accept]")
+        expect(page.locator(".toast").first).to_contain_text("Suspended 2 accounts.")
+        expect(page.locator("#user-results .badge-danger")).to_have_count(2)
+        assert page.url.endswith("/admin/users?q=bulk-")
+
+    def test_filtering_updates_in_place(self, new_page, admin_state):
+        page = new_page(state=admin_state)
+        page.goto("/admin/users")
+        page.evaluate("window.notReloaded = true")
+        page.fill("#q", "newcomer")
+        page.wait_for_url("**/admin/users?*q=newcomer*")
+        expect(page.locator("#user-results tbody tr")).to_have_count(1)
+        expect(page.locator("#result-count")).to_contain_text("1 account")
+        assert page.evaluate("window.notReloaded") is True
+
+    def test_reset_password_then_they_must_change_it(self, new_page, admin_state, e2e_app):
+        user_id = self._account(e2e_app, "forgot-it")
+        admin = new_page(state=admin_state)
+        admin.goto(f"/admin/users/{user_id}")
+        admin.click("main button:has-text('Reset password')")
+        admin.click("#confirm-dialog [data-accept]")
+        temporary = admin.inner_text("ul.codes code")
+
+        person = new_page()
+        person.goto("/login")
+        person.fill("#username", "forgot-it")
+        person.fill("#password", temporary)
+        person.click("main button[type=submit]")
+        person.wait_for_url("**/app/settings/security/password")
+        expect(person.locator(".toast").first).to_contain_text("choose a new password")
+
+    def test_the_normal_app_doesnt_offer_the_console(self, new_page, logged_in_state, admin_state):
+        person = new_page(state=logged_in_state)
+        person.goto("/app")
+        person.click("details.menu summary")
+        expect(person.locator(".menu-list a[href='/admin']")).to_have_count(0)
+
+        admin = new_page(state=admin_state)
+        admin.goto("/app")
+        admin.click("details.menu summary")
+        admin.click(".menu-list a[href='/admin']")
+        admin.wait_for_url("**/admin")
+        admin.click("details.menu summary")
+        admin.click("text=Back to the app")
+        admin.wait_for_url("**/app")
+
+
+class TestDownloadingEverything:
+    def test_the_button_downloads_a_zip(self, new_page, logged_in_state, tmp_path):
+        page = new_page(state=logged_in_state)
+        page.goto("/app/settings/data")
+        with page.expect_download() as download:
+            page.click("text=Download everything")
+        name = download.value.suggested_filename
+        assert name.startswith("selltrack-export-")
+        assert name.endswith(".zip")
+        path = tmp_path / name
+        download.value.save_as(path)
+        with zipfile.ZipFile(path) as bundle:
+            assert "sales.csv" in bundle.namelist()
+            assert bundle.testzip() is None
+
+
+def _send_notification(app, user_id, title):
+    with app.app_context():
+        notifications.notify(user_id, notifications.Kind.ANNOUNCEMENT, title)
+        db.session.commit()
+        db.session.remove()
+
+
+def _fresh_login(browser, base_url, username, password):
+    """A session of its own, for a test that would otherwise spoil a shared one's notifications."""
+    context = browser.new_context()
+    page = context.new_page()
+    page.goto(f"{base_url}/login")
+    page.fill("#username", username)
+    page.fill("#password", password)
+    page.click("main button[type=submit]")
+    page.wait_for_url(f"{base_url}/app")
+    state = context.storage_state()
+    context.close()
+    return state

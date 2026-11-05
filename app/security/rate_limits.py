@@ -17,6 +17,10 @@ RECOVER_PER_IP = "10 per hour"
 RECOVER_PER_USERNAME = "5 per hour"
 #: Changing a password or recovery codes asks for the current password.
 PASSWORD_CHECK_PER_ACCOUNT = "10 per minute"
+#: Only messages that were actually sent count, so a form with a mistake in it costs nothing.
+SUPPORT_PER_ACCOUNT = "5 per hour"
+#: Building the zip of everything in an account is the heaviest thing a person can ask for.
+EXPORT_PER_ACCOUNT = "10 per hour"
 
 
 def submitted_username() -> str:
@@ -34,6 +38,10 @@ def current_account() -> str:
     # reset the count. Limits run before the login check, so there may be nobody logged in.
     user_id = (current_user.get_id() or "").partition(":")[0]
     return f"account:{user_id}" if user_id else f"ip:{request.remote_addr}"
+
+
+def form_accepted(response: Response) -> bool:
+    return response.status_code == HTTPStatus.FOUND
 
 
 def attempt_failed(response: Response) -> bool:

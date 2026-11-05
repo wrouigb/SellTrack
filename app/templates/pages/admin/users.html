@@ -1,0 +1,77 @@
+{% extends "layouts/admin.html" %}
+{% from "components/forms.html" import field %}
+{% from "components/ui.html" import empty_state, sort_header, pagination %}
+{% block title %}Accounts - SellTrack admin{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Accounts</h1></div>
+
+<form method="get" class="filters filters-3" role="search"
+      hx-get="{{ url_for('admin.users') }}"
+      hx-trigger="input changed delay:300ms from:input[type=search], change"
+      hx-select="#user-results" hx-target="#user-results" hx-swap="outerHTML"
+      hx-select-oob="#result-count:innerHTML" hx-push-url="true" hx-indicator="#user-results">
+  {{ field(form.q, attrs={'autocomplete': 'off'}) }}
+  {{ field(form.status) }}
+  {{ field(form.role) }}
+  <button class="btn btn-secondary" type="submit">Filter</button>
+</form>
+
+<p id="result-count" class="sales-summary" role="status"><span>{{ page.total }} account{{ '' if page.total == 1 else 's' }}</span></p>
+
+<div id="user-results" class="refresh-dims"
+     hx-target="#user-results" hx-select="#user-results" hx-swap="outerHTML"
+     hx-select-oob="#result-count:innerHTML" hx-push-url="true" hx-indicator="#user-results">
+  {% if page.items %}
+  <form method="post" action="{{ url_for('admin.bulk_suspend') }}" x-data="bulkSelect" data-noun="account" x-on:change="recount">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+    <noscript>
+      <div class="bulk-bar">
+        <span>Tick the accounts you want to suspend, then</span>
+        <button class="btn btn-danger btn-small" type="submit">Suspend ticked accounts</button>
+      </div>
+    </noscript>
+    <div class="bulk-bar" x-show="selected" x-cloak>
+      <span x-text="countLabel"></span>
+      <button class="btn btn-danger btn-small" type="submit" data-confirm="Suspend the selected accounts? They'll be logged out and won't be able to log in." data-confirm-label="Suspend accounts">Suspend selected</button>
+    </div>
+    <div class="table-wrap">
+      <table class="table table-stack" role="table">
+        <caption class="sr-only">Accounts. Column headings sort the table.</caption>
+        <thead>
+          <tr role="row">
+            <th scope="col" role="columnheader" class="w-8">
+              <label class="row-check" x-cloak><span class="sr-only">Select all on this page</span><input type="checkbox" data-all x-on:change="toggleAll"></label>
+            </th>
+            {{ sort_header("Username", "username", filters.sort, filters.descending) }}
+            <th scope="col" role="columnheader">Role</th>
+            <th scope="col" role="columnheader">Status</th>
+            {{ sort_header("Joined", "joined", filters.sort, filters.descending) }}
+            {{ sort_header("Last login", "last_login", filters.sort, filters.descending) }}
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in page.items %}
+          <tr role="row">
+            <td role="cell" class="cell-select">
+              {% if user.id != current_user.id and user.status.value == 'active' %}
+              <label class="row-check"><span class="sr-only">Select {{ user.username }}</span><input type="checkbox" name="ids" value="{{ user.id }}" data-row></label>
+              {% endif %}
+            </td>
+            <td role="cell" class="cell-title"><a href="{{ url_for('admin.user_detail', user_id=user.id) }}">{{ user.username }}</a></td>
+            <td role="cell" data-label="Role">{% if user.is_admin %}<span class="badge badge-info">Admin</span>{% else %}User{% endif %}</td>
+            <td role="cell" data-label="Status">{% if user.status.value == 'suspended' %}<span class="badge badge-danger">Suspended</span>{% else %}Active{% endif %}</td>
+            <td role="cell" data-label="Joined" class="num whitespace-nowrap">{{ user.created_at | local_date }}</td>
+            <td role="cell" data-label="Last login" class="num whitespace-nowrap">{{ user.last_login_at | local_datetime if user.last_login_at else 'Never' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+  {{ pagination(page) }}
+  {% elif filtered %}
+    <div class="panel">{{ empty_state("No accounts match", "Try a different search, or clear the filters.", url_for('admin.users'), "Clear filters") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "layouts/base.html" %}
+{% from "components/ui.html" import toasts, confirm_dialog, account_menu, tabs %}
+{% block body %}
+<header class="band">
+  <div class="band-inner">
+    <a class="brand" href="{{ url_for('admin.overview') }}">
+      <img src="{{ asset('logo.svg') }}" alt="" width="32" height="32"> SellTrack <span class="brand-note">Admin</span>
+    </a>
+    <span class="ml-auto"></span>
+    {{ account_menu(current_user.username, true, in_admin=True) }}
+  </div>
+</header>
+<main id="main" tabindex="-1">
+  <div class="page">
+    {{ toasts() }}
+    {{ tabs([
+      ('overview', 'Overview', url_for('admin.overview')),
+      ('users', 'Accounts', url_for('admin.users')),
+      ('support', 'Support (' ~ open_support ~ ')' if open_support else 'Support', url_for('admin.support_inbox')),
+      ('announcements', 'Announcements', url_for('admin.announcements')),
+      ('audit', 'Audit log', url_for('admin.audit_log')),
+      ('flags', 'Feature flags', url_for('admin.feature_flags')),
+      ('system', 'System', url_for('admin.system_health')),
+    ], tab, 'Admin sections') }}
+    {% block content %}{% endblock %}
+  </div>
+</main>
+{{ confirm_dialog() }}
+{% endblock %}

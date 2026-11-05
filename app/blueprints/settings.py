@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, logout_user
 from werkzeug.wrappers import Response
 
@@ -14,6 +14,7 @@ from app.security import rate_limits
 from app.security.rbac import login_required
 from app.security.sessions import start_session
 from app.services import auth as auth_service
+from app.services import export, reporting
 from app.services.errors import ValidationFailed
 
 bp = Blueprint("settings", __name__, url_prefix="/app/settings")
@@ -111,6 +112,22 @@ def preferences() -> Response | str | tuple[str, int]:
         form.theme.data = current_user.theme.value
     status = _INVALID if form.errors else 200
     return render_template("pages/settings/preferences.html", form=form, tab="preferences"), status
+
+
+@bp.get("/data/export.zip")
+@login_required
+@limiter.limit(rate_limits.EXPORT_PER_ACCOUNT, key_func=rate_limits.current_account)
+def export_everything() -> Response:
+    today = reporting.today_for(current_user).isoformat()
+    archive, size = export.account_zip(current_user.id)
+    response = send_file(
+        archive,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"selltrack-export-{today}.zip",
+    )
+    response.content_length = size
+    return response
 
 
 @bp.route("/data", methods=["GET", "POST"])

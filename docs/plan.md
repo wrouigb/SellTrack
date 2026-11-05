@@ -1,6 +1,6 @@
 # SellTrack: Audit & Implementation Plan (v2)
 
-**Status:** **Approved** 5 Nov 2026 (split basis A: real money). Phases 3 and 4 built and awaiting merge, see section 12 · **Repo:** `wrouigb/SellTrack` (private) · **Date:** 5 Nov 2026 · **Scope:** turn the existing Flask/SQLite SellTrack app into a production-ready full-stack app, self-hosted cheaply (Raspberry Pi or small VPS).
+**Status:** **Approved** 5 Nov 2026 (split basis A: real money). Phases 3 and 4 merged, phase 5 built and awaiting review, see section 12 · **Repo:** `wrouigb/SellTrack` (private) · **Date:** 5 Nov 2026 · **Scope:** turn the existing Flask/SQLite SellTrack app into a production-ready full-stack app, self-hosted cheaply (Raspberry Pi or small VPS).
 
 ---
 
@@ -478,8 +478,9 @@ Checkpoints: I pause for review after phases 3 and 4. I deliver each phase as a 
 ## 12. Progress and handoff
 
 **Done (5 Nov 2026):**
-- **Phase 3**, on branch `phase-3-backend-foundations`: [pull request #1](https://github.com/wrouigb/SellTrack/pull/1). Reviewed, not yet merged.
-- **Phase 4**, on branch `phase-4-frontend`, built on top of phase 3 and delivered as its own pull request, paused for review (section 10). Every item in the phase 4 row of section 10 is built, and `legacy/` has been deleted. axe and keyboard checks pass on every page, in light and dark, at desktop width and at 360px.
+- **Phase 3**: [pull request #1](https://github.com/wrouigb/SellTrack/pull/1), merged.
+- **Phase 4**: [pull request #2](https://github.com/wrouigb/SellTrack/pull/2), merged. Every item in the phase 4 row of section 10 is built, and `legacy/` has been deleted. axe and keyboard checks pass on every page, in light and dark, at desktop width and at 360px.
+- **Phase 5**, on branch `phase-5-admin`, delivered as its own pull request and awaiting review. Every item in the phase 5 row of section 10 is built, with integration tests per feature, and admin and security actions audit-logged.
 - Tests run on real Postgres 16 and Redis, as a role that owns its database but isn't a superuser, plus a real browser for the pages.
 
 **How the split rules were settled** (section 3 left these open; the usual receiver, archiving and undo rules were confirmed on 5 Nov 2026):
@@ -492,15 +493,23 @@ Checkpoints: I pause for review after phases 3 and 4. I deliver each phase as a 
 
 **Also confirmed on 5 Nov 2026:** failed logins are limited to 5 a minute per username, accepting that someone could keep a known username locked out, and the added `sign_ins` table stays.
 
+**Decisions made while building (phase 5):**
+- **The audit log holds no names or money.** Phase 3 kept the whole settle-up snapshot in the audit entry for an undo. The audit log outlives the account and the admin can read it, which broke both the promise about deleting an account and the rule that the admin can't see split data. It now keeps counts of rows, and the shares from before an undo as percentages against person IDs. Admin pages also show only the detail fields listed for each action, so a new one can't reach them by accident.
+- **Retention:** sales deleted over 30 days ago, as planned. Sign-ins older than 90 days, apart from each account's latest 20. Read notifications older than 180 days. The audit log is never trimmed. The privacy page says all of this.
+- **Support is for logged-in people.** There's no email to reply to, and an open form would invite spam, so someone locked out still has to reach the admin some other way. A small page added at `/app/support` shows your messages and replies, because a notification alone can't show what you asked. Each message has one reply, and changing it tells the person.
+- **The bell checks every two minutes**, and that doesn't extend the session, so a tab left open still logs out after a week.
+- **Suspending ends sessions for good.** Reactivating an account means logging in again, so a stolen session can't come back. An admin can't reset their own password from the console, or suspend themselves.
+- **The cache** covers the dashboard's totals, chart and product list, and never who owes whom, which is always worked out fresh. It's stored as JSON rather than Flask-Caching's default of pickle, which would let anyone who got into Redis run code.
+- **Last backup** reads the newest file in `BACKUP_DIR` and reports it late after 26 hours. It doesn't check what's in the file. Phase 6 has to mount that folder read-only into the web container.
+
 **Left for later phases, as planned:**
-- Phase 5: admin console; the notifications page and bell, because notifications are saved but can't be read yet; the support form on the help page, with `services/support.py`; the full data export, with `services/export.py` extended to a zip (the sales CSV is already there); `services/entitlements.py`; Flask-Caching; scheduler and cleanup jobs (purge sales deleted over 30 days ago, trim old sign-ins).
-- Phase 6: `deploy/db-roles.sql`, which is what makes the audit log insert-only at the database level (until then it's only by convention in the code); Docker; Nginx, including long-cache headers for hashed assets; CI, including pip-audit and the other scans.
+- Phase 6: `deploy/db-roles.sql`, which is what makes the audit log insert-only at the database level (until then it's only by convention in the code); Docker; Nginx, including long-cache headers for hashed assets; CI, including pip-audit and the other scans; a scheduler container running `flask jobs scheduler`; `BACKUP_DIR` mounted read-only into the web container.
 
 **Working in the cloud workspace:**
 - `uv sync && npm ci && npm run build` installs and builds everything.
 - Postgres 16 and Redis are installed but not running. Start them with `pg_ctlcluster 16 main start` and `redis-server --daemonize yes`, then create the role and databases as in the README.
 - Browser tests need `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell`. Don't run `playwright install` there.
-- `gh` REST calls work (`gh api repos/wrouigb/SellTrack/...`), but GraphQL commands such as `gh pr list` don't. Merging through the API was blocked as a merge without review, so the user merges pull requests themselves.
+- `gh` REST calls work (`gh api repos/wrouigb/SellTrack/...`), but GraphQL commands such as `gh pr list` don't. A merge through the API without the user's explicit approval is refused as a merge without review, so merge only once they've said so for that pull request.
 
 ---
 

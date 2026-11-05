@@ -1,0 +1,6 @@
+{# Checks in by itself, so a reply from support shows up without reloading. Only this part is
+   replaced, so someone tabbed onto the bell doesn't lose their place. #}
+<span id="bell-count" hx-get="{{ url_for('notifications.bell') }}" hx-trigger="every 120s" hx-swap="outerHTML">
+  <span class="sr-only">Notifications{% if count %}, {{ count }} unread{% endif %}</span>
+  {% if count %}<span class="bell-count" aria-hidden="true">{{ count if count < 100 else '99+' }}</span>{% endif %}
+</span>

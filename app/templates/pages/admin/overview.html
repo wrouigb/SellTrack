@@ -1,0 +1,21 @@
+{% extends "layouts/admin.html" %}
+{% from "pages/admin/_health.html" import health_list %}
+{% block title %}Admin - SellTrack{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Overview</h1></div>
+<div class="stack">
+  <section aria-label="Accounts at a glance" class="figures figures-4">
+    <div class="figure"><span class="figure-label">Accounts</span><span class="figure-value">{{ figures.accounts }}</span></div>
+    <div class="figure"><span class="figure-label">Logged in, last 30 days</span><span class="figure-value">{{ figures.active_recently }}</span></div>
+    <div class="figure"><span class="figure-label">Suspended</span><span class="figure-value">{{ figures.suspended }}</span></div>
+    <div class="figure"><span class="figure-label">Waiting for a reply</span><span class="figure-value">{{ figures.open_support }}</span></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>System</h2>
+      <a href="{{ url_for('admin.system_health') }}">More detail</a>
+    </div>
+    {{ health_list(health) }}
+  </section>
+</div>
+{% endblock %}

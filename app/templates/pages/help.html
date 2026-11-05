@@ -1,4 +1,5 @@
 {% extends "layouts/public.html" %}
+{% from "components/forms.html" import field %}
 {% block title %}Help - SellTrack{% endblock %}
 {% block content %}
 <article class="prose-block">
@@ -45,7 +46,22 @@
   <p>Use one of the recovery codes you saved when you signed up, on the <a href="{{ url_for('auth.recover') }}">account recovery page</a>. Each code works once. SellTrack has no email, so without a code the site's admin has to reset your password for you.</p>
   <h3>We share one login. Is that all right?</h3>
   <p>Yes. Everything in an account is shared by whoever logs in to it. People you add to the split are just names, not separate logins. Recent sign-ins are under Settings, and you can log out every device from there.</p>
+  <h3>Can I get a copy of my data?</h3>
+  <p>Yes, whenever you like. Go to Settings, then Your data, and download everything as a zip of spreadsheet files.</p>
   <h3>How do I delete my account?</h3>
   <p>Go to Settings, then Your data. Deleting your account removes all its sales, products and history, and can't be undone.</p>
+
+  <h2 id="contact">Contact support</h2>
+  {% if current_user.is_authenticated %}
+    <p>Send a message to the site's admin. SellTrack has no email, so the reply shows up in your notifications and under <a href="{{ url_for('support.messages') }}">your support messages</a>.</p>
+    <form method="post" action="{{ url_for('support.messages') }}" class="mt-4" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ field(support_form.subject, attrs={'autocomplete': 'off', 'maxlength': 200}) }}
+      {{ field(support_form.body, attrs={'rows': 6, 'maxlength': 5000}) }}
+      <button class="btn btn-primary mt-4" type="submit">Send message</button>
+    </form>
+  {% else %}
+    <p><a href="{{ url_for('auth.login', next=url_for('public.help_page', _anchor='contact')) }}">Log in</a> to send a message to the site's admin. SellTrack has no email, so the reply reaches you inside the app. If you can't log in at all, ask whoever runs your SellTrack site.</p>
+  {% endif %}
 </article>
 {% endblock %}

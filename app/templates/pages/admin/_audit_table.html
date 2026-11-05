@@ -1,0 +1,10 @@
+{# Written with no stray whitespace, so a row with no details counts as empty and hides on phones. #}
+{% macro detail_text(details) -%}
+  {%- if details -%}
+    <span class="audit-details">
+      {%- for name, value in details -%}
+        <span class="audit-detail">{{ name | replace('_', ' ') }}: {{ value }}</span>
+      {%- endfor -%}
+    </span>
+  {%- endif -%}
+{%- endmacro %}

@@ -1,4 +1,8 @@
-"""Figures for the dashboard. Everything is one SQL aggregate, not a loop over every sale."""
+"""Figures for the dashboard. Everything is one SQL aggregate, not a loop over every sale.
+
+The totals, the chart and the product list are cached for a few minutes: see
+``app.figures_cache``, which also says why a write can't leave a wrong figure behind.
+"""
 
 from __future__ import annotations
 
@@ -7,13 +11,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Literal, cast
+from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import ColumnElement, Date, func, literal_column, select
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.orm import Mapped
 
+from app import figures_cache
 from app.extensions import db
 from app.models import DEFAULT_TIMEZONE, Sale, UpfrontCost, User
 from app.money import CENT
@@ -151,6 +156,17 @@ def previous_period(period: Period, *, today: date | None = None) -> Period | No
 
 
 def totals_for(user_id: int, period: Period) -> Totals:
+    return figures_cache.remember(
+        user_id,
+        "totals",
+        f"{period.start}:{period.end}",
+        lambda: _work_out_totals(user_id, period),
+        _encode_totals,
+        _decode_totals,
+    )
+
+
+def _work_out_totals(user_id: int, period: Period) -> Totals:
     sales = db.session.execute(
         select(
             func.coalesce(func.sum(Sale.price_paid), 0),
@@ -205,6 +221,17 @@ def change_between(current: Decimal, previous: Decimal) -> Change:
 
 def by_product(user_id: int, period: Period, *, limit: int | None = None) -> list[ProductFigures]:
     """Profit by product, best first. Grouped by name, so removed products still show up."""
+    return figures_cache.remember(
+        user_id,
+        "products",
+        f"{period.start}:{period.end}:{limit}",
+        lambda: _work_out_by_product(user_id, period, limit),
+        _encode_products,
+        _decode_products,
+    )
+
+
+def _work_out_by_product(user_id: int, period: Period, limit: int | None) -> list[ProductFigures]:
     query = (
         select(
             Sale.product_name,
@@ -234,6 +261,19 @@ def series(
     Pass ``today`` to stop at today, unless a sale is dated later, so the chart isn't mostly the
     days that haven't happened yet.
     """
+    return figures_cache.remember(
+        user_id,
+        "series",
+        f"{period.start}:{period.end}:{today}",
+        lambda: _work_out_series(user_id, period, today),
+        _encode_series,
+        _decode_series,
+    )
+
+
+def _work_out_series(
+    user_id: int, period: Period, today: date | None
+) -> tuple[Literal["day", "month"], list[SeriesPoint]]:
     first: date | None = period.start
     last: date | None = period.end
     if first is None or last is None:
@@ -276,6 +316,63 @@ def series(
         points.append(SeriesPoint(day=cursor, money_in=money_in, profit=profit))
         cursor = cursor + timedelta(days=1) if bucket == "day" else _next_month(cursor)
     return bucket, points
+
+
+# The cache holds JSON, which has no decimals or dates, so amounts and days travel as text.
+
+
+def _encode_totals(totals: Totals) -> list[object]:
+    return [
+        str(totals.money_in),
+        str(totals.cost_of_items),
+        str(totals.profit),
+        str(totals.upfront_costs),
+        totals.items_sold,
+        totals.sales_count,
+    ]
+
+
+def _decode_totals(saved: list[Any]) -> Totals:
+    money_in, cost_of_items, profit, upfront_costs, items_sold, sales_count = saved
+    return Totals(
+        money_in=Decimal(money_in),
+        cost_of_items=Decimal(cost_of_items),
+        profit=Decimal(profit),
+        upfront_costs=Decimal(upfront_costs),
+        items_sold=items_sold,
+        sales_count=sales_count,
+    )
+
+
+def _encode_products(rows: list[ProductFigures]) -> list[list[object]]:
+    return [[row.name, row.quantity, str(row.money_in), str(row.profit)] for row in rows]
+
+
+def _decode_products(saved: list[list[Any]]) -> list[ProductFigures]:
+    return [
+        ProductFigures(
+            name=name, quantity=quantity, money_in=Decimal(money), profit=Decimal(profit)
+        )
+        for name, quantity, money, profit in saved
+    ]
+
+
+def _encode_series(
+    value: tuple[Literal["day", "month"], list[SeriesPoint]],
+) -> list[object]:
+    bucket, points = value
+    return [
+        bucket,
+        [[point.day.isoformat(), str(point.money_in), str(point.profit)] for point in points],
+    ]
+
+
+def _decode_series(saved: list[Any]) -> tuple[Literal["day", "month"], list[SeriesPoint]]:
+    bucket, points = saved
+    return bucket, [
+        SeriesPoint(day=date.fromisoformat(day), money_in=Decimal(money), profit=Decimal(profit))
+        for day, money, profit in points
+    ]
 
 
 def recent_sales(user_id: int, *, limit: int = 5) -> Sequence[Sale]:
