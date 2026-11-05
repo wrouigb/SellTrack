@@ -1,6 +1,6 @@
 # SellTrack: Audit & Implementation Plan (v2)
 
-**Status:** **Approved** 5 Nov 2026 (split basis A: real money). Phase 3 in progress, see section 12 · **Repo:** `wrouigb/SellTrack` (private) · **Date:** 5 Nov 2026 · **Scope:** turn the existing Flask/SQLite SellTrack app into a production-ready full-stack app, self-hosted cheaply (Raspberry Pi or small VPS).
+**Status:** **Approved** 5 Nov 2026 (split basis A: real money). Phase 3 built and awaiting review, see section 12 · **Repo:** `wrouigb/SellTrack` (private) · **Date:** 5 Nov 2026 · **Scope:** turn the existing Flask/SQLite SellTrack app into a production-ready full-stack app, self-hosted cheaply (Raspberry Pi or small VPS).
 
 ---
 
@@ -340,6 +340,7 @@ users              id · username citext UNIQUE (3–30, letters/numbers/._-) ·
                    · status enum(active,suspended) · must_change_password bool · session_version int
                    · timezone text · theme enum(system,light,dark) · last_login_at · onboarded_at
 recovery_codes     id · user_id · code_hash · used_at NULL                      (10 per user, regenerable)
+sign_ins           id · user_id · ip inet · user_agent · created_at               (recent sign-ins list; append-only)
 products           id · user_id · name varchar(100) · cost numeric CHECK ≥0 · sell_price numeric NULL CHECK ≥0 · archived_at NULL
                    UNIQUE (user_id, lower(name)) WHERE archived_at IS NULL
 product_cost_changes  id · product_id (cascade) · old_cost NULL · new_cost · changed_at
@@ -362,6 +363,14 @@ feature_flags      id · key UNIQUE · description · enabled · rollout_pct 0�
 ```
 
 `settlement_id IS NULL` means "in the current, open period". Settle-up stamps the open rows with the new settlement's ID; undo clears it.
+
+Refinements made while building (phase 3):
+- `sign_ins` added, for the recent sign-ins list and the "new sign-in" notification.
+- Settlement totals are `numeric(16,2)`, because a period's total can exceed any single amount.
+- Every money check also rejects `NaN`: Postgres sorts it above all numbers, so `'NaN' >= 0` is true.
+- Rows reference people and settlements through composite foreign keys on `(user_id, id)`, so a row can't point at another account's records even if a query has a bug. They're checked at commit, so deleting an account can cascade in any order.
+- A partial unique index allows only one usual receiver per account.
+- Append-only tables (`audit_logs`, `sign_ins`, `product_cost_changes`) have no `updated_at`.
 
 ---
 
@@ -461,24 +470,28 @@ Checkpoints: I pause for review after phases 3 and 4. I deliver each phase as a 
 
 ## 12. Progress and handoff
 
-**Done (5 Nov 2026):**
-- `main` @ `6efb8e2`: the original app imported unchanged as the baseline.
-- Branch **`phase-3-backend-foundations`**:
-  - Original files moved to `legacy/` (templates are the reference for phase 4; delete `legacy/` at the end of phase 4).
-  - `app/money.py`: strict money/percent parsing (rejects NaN, Infinity, floats, non-ASCII digits and >2 dp), cents conversion, en-AU formatting, largest-remainder `allocate()`, `even_shares()`.
-  - `app/services/split_engine.py`: the cash-basis split engine from section 3. Pure Python; returns per-person figures, minimal transfers, issues/`can_settle`, and a JSON snapshot for settlements.
-  - 149 unit tests, including the worked example and 1,500 randomised periods checking that balances total $0 and settling up clears every debt.
-  - `pyproject.toml` with ruff/mypy/pytest config. Lint, format, strict mypy and tests are clean.
+**Done (5 Nov 2026):** phase 3, on branch **`phase-3-backend-foundations`**, delivered as a pull request into `main` and paused for review (section 10).
+- `legacy/` holds the original app. Its templates are the reference for phase 4; delete it at the end of phase 4.
+- Every item in the phase 3 row of section 10 is built. Sign-up, login, recovery and account security have routes with plain, unstyled pages; products, sales, reporting and the split are services only until phase 4 adds their pages.
+- Tests run on real Postgres 16 and Redis, as a role that owns its database but isn't a superuser. Coverage is 99% overall.
 
-**Next, phase 3 remainder** (needs package installs; the first chat couldn't install packages):
-1. `uv lock`, and confirm dependency lower bounds in `pyproject.toml` against current releases.
-2. `create_app()`, config classes, extensions, models and the first Alembic migration (schema in section 7).
-3. Auth: register, login, logout, recovery codes, password change, log out everywhere, sign-in history, rate limits, Argon2id.
-4. RBAC decorators.
-5. Services for products, sales and reporting; DB-backed `services/split.py` wrapping `split_engine` (period = rows with `settlement_id IS NULL`; settle-up and undo); audit, flags and notifications.
-6. CSRF, security headers/CSP, cookies, error handlers, request IDs, JSON logs, `/healthz`, `/readyz`.
-7. Integration tests on real Postgres 16 + Redis. Both are installed in the cloud workspace: `/usr/lib/postgresql/16/bin`, `redis-server`.
-8. Open the phase 3 PR into `main`. The GitHub CLI isn't signed in in the cloud workspace, so push the branch and give the user the compare link.
+**How the split rules were settled while building** (section 3 left these open):
+- **Usual receiver:** written onto each sale when it's saved, so changing the usual receiver later never re-attributes old sales. A sale saved before anyone exists has no receiver and counts as the usual receiver's. If several people remain and none is the usual receiver, the user has to choose before settling.
+- **Archiving:** blocked while the person has anything in the current period, including sales with no receiver if they're the usual receiver, so they settle first. Archiving sets their share to 0%.
+- **Undo:** reverses exactly what settling did, and doesn't touch shares. Archived people whose rows come back rejoin the sums at 0%. If shares have changed since, the app says so.
+- **Deleting a person:** only with no history at all, including appearing in a past settlement's snapshot.
+- **Locks:** on a settled row, the amount, quantity, and who paid or received are locked. Dates, names and notes can still change. Deleting is blocked. Bulk delete skips and reports locked sales.
+- **Settling:** settles only the rows it read and locked, so a sale saved at the same moment falls into the next period. It's refused when there are no rows.
+
+**Left for later phases, as planned:**
+- Phase 4: all designed pages; forms for products, sales and the split; the time zone and theme settings; showing sign-in times in the user's time zone.
+- Phase 5: admin console; `services/support.py`, `services/export.py`, `services/entitlements.py`; Flask-Caching; scheduler and cleanup jobs (purge sales deleted over 30 days ago, trim old sign-ins).
+- Phase 6: `deploy/db-roles.sql`, which is what makes the audit log insert-only at the database level (until then it's only by convention in the code); Docker; CI, including pip-audit and the other scans.
+
+**Working in the cloud workspace:**
+- `uv sync` installs everything.
+- Postgres 16 and Redis are installed but not running. Start them with `pg_ctlcluster 16 main start` and `redis-server --daemonize yes`, then create the role and databases as in the README.
+- `gh` REST calls work (`gh api repos/wrouigb/SellTrack/...`), but GraphQL commands such as `gh pr list` don't.
 
 ---
 

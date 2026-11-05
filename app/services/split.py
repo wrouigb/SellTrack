@@ -140,7 +140,7 @@ def add_person(
         receives_money_default=usually_receives_money or is_first,
     )
     db.session.add(person)
-    _flush_names(user_id)
+    _flush_names()
     _warn_if_shares_off(user_id)
     db.session.commit()
     return person
@@ -163,7 +163,7 @@ def update_person(
         raise ValidationFailed(name="Restore this person before changing them.")
     person.name = checked(clean_name)
     person.share_pct = checked(share)
-    _flush_names(user_id)
+    _flush_names()
     _warn_if_shares_off(user_id)
     db.session.commit()
     return person
@@ -236,7 +236,7 @@ def restore_person(user_id: int, partner_id: int) -> Partner:
     needs_receiver = _usual_receiver_id(user_id) is None
     person.archived_at = None
     person.receives_money_default = needs_receiver
-    _flush_names(user_id)
+    _flush_names()
     db.session.commit()
     return person
 
@@ -856,7 +856,7 @@ def _has_any_history(user_id: int, partner_id: int) -> bool:
     return any(db.session.scalar(check.limit(1)) is not None for check in checks)
 
 
-def _flush_names(user_id: int) -> None:
+def _flush_names() -> None:
     """Save now, turning a clash on the unique name index into a friendly error."""
     try:
         db.session.flush()
