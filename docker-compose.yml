@@ -44,8 +44,11 @@ services:
     image: selltrack:dev
     command: ["flask", "jobs", "scheduler"]
     environment: *app-settings
+    # The image's own check is for the web server. There's nothing to ask a scheduler: if it stops,
+    # so does its container.
     healthcheck:
-      disable: true
+      test: ["CMD", "true"]
+      interval: 10s
     depends_on:
       migrate:
         condition: service_completed_successfully

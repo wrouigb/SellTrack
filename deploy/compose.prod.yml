@@ -70,8 +70,11 @@ services:
     environment: *app-settings
     tmpfs:
       - /tmp:size=16m,mode=1777
+    # The image's own check is for the web server. There's nothing to ask a scheduler: if it stops,
+    # so does its container. But `up --wait` refuses to run with a check that's turned off.
     healthcheck:
-      disable: true
+      test: ["CMD", "true"]
+      interval: 10s
     mem_limit: 192m
     depends_on:
       db:
