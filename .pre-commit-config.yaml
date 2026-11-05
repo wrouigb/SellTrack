@@ -1,0 +1,26 @@
+# `uv run pre-commit install` runs these before each commit. CI runs the same checks, so this only
+# saves a wait.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.3
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy app
+        language: system
+        pass_filenames: false
+        files: ^app/.*\.py$
+      - id: lockfile
+        name: uv.lock matches pyproject.toml
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock)$
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

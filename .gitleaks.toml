@@ -1,0 +1,12 @@
+# Secret scanning, on top of gitleaks' own rules. Everything allowed here is made up, and only ever
+# used in tests or on your own machine.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Made-up values for tests and local development"
+paths = [
+    '''^tests/''',
+    '''^deploy/dev-db-init\.sql$''',
+    '''^docker-compose\.yml$''',
+]

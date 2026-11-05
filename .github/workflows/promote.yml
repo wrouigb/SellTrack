@@ -1,0 +1,54 @@
+# Sends a release to production, by moving the prod tag. Nothing is rebuilt: it's the very same
+# images that staging has been running.
+#
+# GitHub's "required reviewers" approval isn't available for private repositories on a free plan,
+# so the approval is someone pressing "Run workflow", which only works from main.
+#
+# This is also how to roll production back: promote an earlier revision.
+name: Promote to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: The full commit to promote. Leave empty for whatever staging is running now.
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/wrouigb/selltrack
+
+jobs:
+  promote:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Move the prod tag
+        env:
+          REVISION: ${{ inputs.revision }}
+        run: |
+          if [ -z "$REVISION" ]; then
+            docker pull --quiet "$IMAGE:staging" >/dev/null
+            REVISION=$(docker image inspect \
+              --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+              "$IMAGE:staging")
+          fi
+          if ! printf '%s' "$REVISION" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "That isn't a full commit hash: $REVISION" >&2
+            exit 1
+          fi
+          # The app's tag last, because moving that is what a deploy looks for.
+          docker buildx imagetools create --tag "$IMAGE-nginx:prod" "$IMAGE-nginx:sha-$REVISION"
+          docker buildx imagetools create --tag "$IMAGE:prod" "$IMAGE:sha-$REVISION"
+          echo "Production will update to $REVISION within a couple of minutes." >> "$GITHUB_STEP_SUMMARY"

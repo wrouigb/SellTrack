@@ -1,0 +1,92 @@
+# Everything running on your own machine: `docker compose up --build`, then http://localhost:8080.
+#
+# For working on the code, `make dev` is quicker. It only uses the db and redis services from here,
+# and runs the app directly so that changes show up straight away.
+#
+# The passwords here are only for this local setup, and these ports only listen on this machine.
+
+x-app-build: &app-build
+  context: .
+  target: web
+
+x-app-settings: &app-settings
+  APP_ENV: development
+  # Fixed, so that logins survive a restart and every worker agrees on it. Never used anywhere real.
+  SECRET_KEY: local-development-only-this-key-is-not-secret
+  DATABASE_URL: postgresql://selltrack:selltrack@db:5432/selltrack_dev
+  REDIS_URL: redis://redis:6379/0
+  TRUSTED_PROXY_COUNT: "1"
+
+services:
+  nginx:
+    build:
+      context: .
+      target: nginx
+    image: selltrack-nginx:dev
+    ports:
+      - 127.0.0.1:${HTTP_PORT:-8080}:8080
+    depends_on:
+      web:
+        condition: service_healthy
+
+  web:
+    build: *app-build
+    image: selltrack:dev
+    environment: *app-settings
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  scheduler:
+    build: *app-build
+    image: selltrack:dev
+    command: ["flask", "jobs", "scheduler"]
+    environment: *app-settings
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    build: *app-build
+    image: selltrack:dev
+    command: ["flask", "jobs", "migrate"]
+    environment: *app-settings
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-trixie
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - 127.0.0.1:${DB_PORT:-5432}:5432
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./deploy/dev-db-init.sql:/docker-entrypoint-initdb.d/dev-db-init.sql:ro
+    healthcheck:
+      # Over TCP, because while the image is setting up the database it only listens on a socket.
+      test: ["CMD", "pg_isready", "--host=127.0.0.1", "--username=selltrack", "--dbname=selltrack_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - 127.0.0.1:${REDIS_PORT:-6379}:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  db-data:

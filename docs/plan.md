@@ -1,6 +1,6 @@
 # SellTrack: Audit & Implementation Plan (v2)
 
-**Status:** **Approved** 5 Nov 2026 (split basis A: real money). Phases 3 and 4 merged, phase 5 built and awaiting review, see section 12 · **Repo:** `wrouigb/SellTrack` (private) · **Date:** 5 Nov 2026 · **Scope:** turn the existing Flask/SQLite SellTrack app into a production-ready full-stack app, self-hosted cheaply (Raspberry Pi or small VPS).
+**Status:** **Approved** 5 Nov 2026 (split basis A: real money). Phases 3 and 4 merged, phases 5 and 6 built and awaiting review, see section 12 · **Repo:** `wrouigb/SellTrack` (private) · **Date:** 5 Nov 2026 · **Scope:** turn the existing Flask/SQLite SellTrack app into a production-ready full-stack app, self-hosted cheaply (Raspberry Pi or small VPS).
 
 ---
 
@@ -481,6 +481,7 @@ Checkpoints: I pause for review after phases 3 and 4. I deliver each phase as a 
 - **Phase 3**: [pull request #1](https://github.com/wrouigb/SellTrack/pull/1), merged.
 - **Phase 4**: [pull request #2](https://github.com/wrouigb/SellTrack/pull/2), merged. Every item in the phase 4 row of section 10 is built, and `legacy/` has been deleted. axe and keyboard checks pass on every page, in light and dark, at desktop width and at 360px.
 - **Phase 5**, on branch `phase-5-admin`, delivered as its own pull request and awaiting review. Every item in the phase 5 row of section 10 is built, with integration tests per feature, and admin and security actions audit-logged.
+- **Phase 6**, on branch `phase-6-ops`, built on top of phase 5 and delivered as its own pull request, awaiting review. Everything in the phase 6 row of section 10 is built.
 - Tests run on real Postgres 16 and Redis, as a role that owns its database but isn't a superuser, plus a real browser for the pages.
 
 **How the split rules were settled** (section 3 left these open; the usual receiver, archiving and undo rules were confirmed on 5 Nov 2026):
@@ -502,12 +503,23 @@ Checkpoints: I pause for review after phases 3 and 4. I deliver each phase as a 
 - **The cache** covers the dashboard's totals, chart and product list, and never who owes whom, which is always worked out fresh. It's stored as JSON rather than Flask-Caching's default of pickle, which would let anyone who got into Redis run code.
 - **Last backup** reads the newest file in `BACKUP_DIR` and reports it late after 26 hours. It doesn't check what's in the file. Phase 6 has to mount that folder read-only into the web container.
 
+**Decisions made while building (phase 6):**
+- **Two images under one tag:** the app, and Nginx with the built assets inside it. A shared volume would keep serving the old assets after an upgrade.
+- **The compose file comes from the image being deployed,** rather than from a copy on the server, so the two can't get out of step and a rollback brings back the compose file it needs. The deploy script itself is the exception, because a bad version could never deploy its own fix. The log says when there's a newer one.
+- **A late backup is only a warning in the smoke check,** not a failure as section 9 implied. A new release didn't cause it, so rolling back wouldn't help, and the very first deploy would always fail.
+- **Going back to an older release is safe for migrations.** Alembic refuses to run when the database is ahead of the code, so `flask jobs migrate` leaves it alone in that case.
+- **A failed release isn't tried again** until a different one arrives. Otherwise it would be deployed and rolled back every two minutes.
+- **The role rules are applied both before and after migrations,** rather than in a migration. Before, so the roles exist. After, so anything a migration created is covered.
+- **Failures don't notify anyone.** There's no email, so they show in the journal and `systemctl --failed`. A later version could add a notification for the admin.
+- **Base images are pinned by version tag, not digest,** because the workspace can't reach container registries to look them up. Dependabot proposes updates.
+
 **Left for later phases, as planned:**
-- Phase 6: `deploy/db-roles.sql`, which is what makes the audit log insert-only at the database level (until then it's only by convention in the code); Docker; Nginx, including long-cache headers for hashed assets; CI, including pip-audit and the other scans; a scheduler container running `flask jobs scheduler`; `BACKUP_DIR` mounted read-only into the web container.
+- Phase 7: the launch checklist, and setting up the Pi or a cheap VPS with the user, following `docs/runbooks/install.md`.
 
 **Working in the cloud workspace:**
-- `uv sync && npm ci && npm run build` installs and builds everything.
-- Postgres 16 and Redis are installed but not running. Start them with `pg_ctlcluster 16 main start` and `redis-server --daemonize yes`, then create the role and databases as in the README.
+- `make setup` installs and builds everything. `make test` needs Docker, so use `make test-only` here.
+- Postgres 16 and Redis are installed but not running. Start them with `pg_ctlcluster 16 main start` and `redis-server --daemonize yes`, then create the role and databases as in `deploy/dev-db-init.sql`.
+- The workspace can't pull images, because container registries are blocked, so images only get built and run in CI. `gh api repos/wrouigb/SellTrack/commits/<sha>/check-runs` shows the results, and CI puts the end of a failing step's output in an annotation.
 - Browser tests need `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell`. Don't run `playwright install` there.
 - `gh` REST calls work (`gh api repos/wrouigb/SellTrack/...`), but GraphQL commands such as `gh pr list` don't. A merge through the API without the user's explicit approval is refused as a merge without review, so merge only once they've said so for that pull request.
 

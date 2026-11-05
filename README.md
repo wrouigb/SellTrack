@@ -2,91 +2,108 @@
 
 Track what you sell, see what you make, and split the profit fairly.
 
-> **Status: being rebuilt for production.** The backend, the pages and the admin console are done
-> (phases 3 to 5 of the plan in [`docs/plan.md`](docs/plan.md)). Docker and deployment come next.
+**What's in it:** products and sales, a dashboard, a profit split between partners with settle-ups you can undo, in-app notifications, support messages and an admin console. It runs in Docker on a Raspberry Pi or a small server.
 
-## What's here
+## Quick start
+
+You need [uv](https://docs.astral.sh/uv/), Node 22+ and Docker.
+
+```bash
+make setup    # installs everything and builds the CSS and JavaScript
+make test     # starts Postgres and Redis in Docker, then runs every test
+docker compose up --build
+```
+
+Then open <http://localhost:8080> and register. To make yourself an admin, which opens the console at `/admin`:
+
+```bash
+docker compose run --rm web flask users create-admin
+```
+
+`make help` lists every command.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    browser([Browser]) -->|HTTPS| tunnel[Tunnel]
+    tunnel --> nginx[Nginx<br/>built CSS and JS,<br/>long-cache headers]
+    nginx --> web[Gunicorn and Flask<br/>2 workers, 4 threads each]
+    web --> db[(PostgreSQL 16)]
+    web --> redis[(Redis<br/>rate limits and<br/>cached figures)]
+    scheduler[Scheduler<br/>nightly cleanup] --> db
+    backup[Backup<br/>nightly pg_dump, keeps 14] --> db
+    backup --> files[(Backup folder)]
+    web -.->|reads its age| files
+```
+
+Inside the app, routes in `app/blueprints/` stay thin, and the rules live in `app/services/`.
 
 | Path | What it is |
 |---|---|
-| `app/__init__.py`, `app/config.py` | App factory and configuration. Staging and production refuse to start without a strong secret, Postgres and debug off |
-| `app/models/` | The database schema (plan section 7) |
-| `migrations/` | Alembic migrations |
-| `app/money.py` | Exact AUD money: strict parsing, whole cents, en-AU formatting, totals that never lose a cent |
-| `app/services/` | The business rules: accounts, products, sales, reporting, the profit split, notifications, feature flags, audit log |
-| `app/security/` | Sessions, passwords (Argon2id), permissions, security headers, rate limits |
-| `app/blueprints/`, `app/forms/` | Thin routes and forms |
-| `app/templates/` | Pages, built from the components in `app/templates/components/` |
-| `app/static/src/` | The design tokens and styles (`app.css`) and the small amount of JavaScript (`app.js`) |
-| `app/charts.py` | The geometry of the dashboard's chart, drawn on the server as SVG |
+| `app/services/` | The business rules: accounts, products, sales, reporting, the profit split, notifications, support, flags, the audit log and exports |
+| `app/services/split_engine.py` | The split calculation itself, with no database or web code, so that every rule can be tested directly |
+| `app/money.py` | Exact money in AUD: whole cents, strict parsing, and totals that never lose a cent |
+| `app/models/`, `migrations/` | The database schema. See [`docs/schema.md`](docs/schema.md) |
+| `app/blueprints/`, `app/forms/` | Routes and forms. See [`docs/endpoints.md`](docs/endpoints.md) |
+| `app/security/` | Sessions, passwords (Argon2id), permissions, security headers and rate limits |
+| `app/jobs/` | The nightly cleanup and its scheduler, and the steps a deploy runs |
+| `app/figures_cache.py` | Dashboard totals in Redis, and how they stop being used as soon as they change |
+| `app/templates/`, `app/static/src/` | The pages, styles and a small amount of JavaScript |
+| `deploy/` | Nginx, Gunicorn, the production compose file, database roles, backups and the deploy script |
 | `tests/` | Unit tests, integration tests on real Postgres and Redis, and browser tests |
+| `docs/` | Guides for [users](docs/user-guide.md) and [admins](docs/admin-guide.md), and [runbooks](docs/runbooks/) |
 
-## Setting up
-
-You need Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 22+, PostgreSQL 16 and Redis.
-
-```bash
-uv sync
-npm ci
-npm run build
-cp .env.example .env
-
-# As a Postgres superuser. The role only needs to own its databases, not be a superuser.
-psql -c "CREATE ROLE selltrack LOGIN PASSWORD 'selltrack'"
-psql -c "CREATE DATABASE selltrack_dev OWNER selltrack"
-psql -c "CREATE DATABASE selltrack_test OWNER selltrack"
-
-export FLASK_APP=app:create_app
-uv run flask db upgrade
-uv run flask users create-admin
-uv run flask run --debug
-```
-
-While changing styles or JavaScript, `npm run watch` rebuilds them as you save. The app picks up a
-rebuild by itself.
-
-## Checks
+## Working on it
 
 ```bash
-uv run pytest                        # add --cov for coverage
-uv run ruff check . && uv run ruff format --check .
-uv run mypy app
+make dev      # runs the app on http://localhost:5000, restarting when code changes
+make assets   # in another terminal: rebuilds CSS and JavaScript as you save
+make check    # style, types and known vulnerabilities
+make test
 ```
 
-Integration tests use `postgresql://selltrack:selltrack@localhost:5432/selltrack_test` and Redis
-database 15. Override them with `TEST_DATABASE_URL` and `TEST_REDIS_URL`. They fail, rather than
-skip, when either service is down. The test database is wiped on every run, so the tests refuse
-to run against a database whose name doesn't contain `test`.
+`uv run pre-commit install` runs the quick checks before each commit.
 
-Browser tests (`tests/e2e/`) run axe-core and keyboard checks on every page, in light and dark, at
-desktop width and at 360px. They run last, and need `npm run build` and a browser:
-`uv run playwright install chromium`, or set `E2E_CHROMIUM_PATH` to use a Chromium you already
-have. To skip them, use `uv run pytest -m "not e2e"`.
+### Tests
+
+`make test` runs everything, and fails if coverage drops below 85% overall or 95% on the split engine.
+
+- Integration tests use real Postgres and Redis, and fail rather than skip if either is down. To use your own instead of Docker, set `TEST_DATABASE_URL` and `TEST_REDIS_URL`, and run `make test-only`. The test database is wiped on every run, so they refuse to touch one whose name doesn't contain `test`.
+- The tests of the database roles need a superuser connection, in `TEST_ADMIN_DATABASE_URL`. `make test` sets it, and without it they're skipped.
+- Browser tests (`tests/e2e/`) run axe-core and keyboard checks on every page, in light and dark, at desktop width and at 360px. `make setup` installs Chromium, unless `E2E_CHROMIUM_PATH` points to one you already have. To skip them, use `uv run pytest -m "not e2e"`.
+
+### Changing the database
+
+Create a migration with `uv run flask db migrate -m "what changed"`, and read what it generated. **Each migration has to leave the schema working for the release before it**, because that's what lets a bad release roll back on its own. So add first, and only remove things in a later release, once nothing uses them.
+
+### Keeping the numbers in step
+
+The cleanup removes sales deleted over 30 days ago, sign-ins older than 90 days (apart from each account's latest 20) and read notifications older than 180 days. The privacy page promises this, and a test checks that the two agree.
+
+Admin pages only show the audit details listed in `_VISIBLE_DETAILS` in `app/services/audit.py`. Audit entries must never hold customer names, names of people in a split or amounts, because the audit log outlives the account.
+
+A bulk `update()` that changes dashboard figures, with no changed `Sale`, `UpfrontCost` or `Product` in the same transaction, needs `figures_cache.forget(user_id)`.
 
 ## Configuration
 
-Every setting is listed and explained in [`.env.example`](.env.example). `APP_ENV` chooses between
-`development`, `testing`, `staging` and `production`.
+Every setting for running the app is explained in [`.env.example`](.env.example), and for a deployed stack in [`deploy/stack.env.example`](deploy/stack.env.example). Staging and production refuse to start without a strong secret key, a Postgres URL and debug off.
 
-Docker, deployment and full documentation arrive in phase 6.
+## Releasing and deploying
 
-## Admin and background jobs
-
-```bash
-uv run flask users create-admin   # the first admin; the console is at /admin
-uv run flask jobs scheduler       # keeps running: does the nightly cleanup, and stops on SIGTERM
-uv run flask jobs cleanup         # the same cleanup, once, right now
+```mermaid
+flowchart LR
+    pr[Pull request] -->|CI passes, merged| main[main]
+    main -->|CI passes| staging[":staging tag"]
+    staging -->|within 2 minutes| pis[Staging stack]
+    staging -->|you press Run workflow| prod[":prod tag"]
+    prod -->|within 2 minutes| pip[Production stack]
 ```
 
-The cleanup removes sales deleted over 30 days ago, sign-ins older than 90 days (apart from each
-account's latest 20) and read notifications older than 180 days. The privacy page promises this, so
-keep them in step. It runs at 17:00 UTC, or as soon as the scheduler is back if it was down then.
+The server checks for new releases itself, so it needs no open ports and no CI credentials. Each deploy updates the database, restarts the stack and runs a smoke check, and goes back to the previous release by itself if that fails.
 
-The admin console shows account details and counts, never what's in an account. Audit entries hold
-no customer names, names of people in a split, or amounts, because they outlive the account. Admin
-pages only show the detail fields listed in `_VISIBLE_DETAILS` in `app/services/audit.py`.
-
-Dashboard totals are cached in Redis for up to five minutes. A commit that touches an account's
-sales, costs or products makes its cached figures unreachable straight away. See
-`app/figures_cache.py`. A bulk `update()` that changes figures without a changed `Sale`, `UpfrontCost`
-or `Product` in the same transaction needs `figures_cache.forget(user_id)`.
+- [Installing on a Raspberry Pi or server](docs/runbooks/install.md)
+- [Deploying and promoting](docs/runbooks/deploy.md)
+- [Rolling back](docs/runbooks/rollback.md)
+- [Restoring from a backup](docs/runbooks/restore.md)
+- [When something's wrong](docs/runbooks/incident.md)

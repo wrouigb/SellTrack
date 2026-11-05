@@ -47,6 +47,8 @@ document.addEventListener("alpine:init", () => {
       const price = this.$refs.price;
       this.priceTyped = Boolean(price?.value);
       this.readProduct();
+      // The product may already be chosen, such as when adding a sale from a product's own page.
+      this.autofill();
       this.refresh();
     },
 

@@ -47,8 +47,21 @@ All notable changes to SellTrack are recorded here. The format follows
   sign-ins and old read notifications.
 - Dashboard totals are cached in Redis, and stop being used as soon as anything changes them.
 - `app/services/entitlements.py`, the single place billing limits would go. Everything is unlimited.
+- Docker images for PC and Raspberry Pi, compose files for local use and for production, Nginx and
+  Gunicorn settings, with containers that run as non-root on read-only file systems.
+- Nightly backups that are checked before being kept, with the newest 14 kept, and a restore that
+  CI tests on every pull request.
+- Three database roles, so that the app can't change the schema or alter the audit log, and
+  backups can't change anything.
+- CI, release and promote workflows, and a deploy script that goes back to the previous release by
+  itself if a smoke check fails.
+- A Makefile, pre-commit hooks, Dependabot, schema and endpoint references that tests keep accurate,
+  guides for users and admins, and runbooks for installing, deploying, rolling back, restoring and
+  incidents.
 
 ### Changed
+- A sale's price fills in when its product is already chosen, such as on the first sale in
+  onboarding, as well as when you pick one.
 - CSV downloads open correctly in Excel, including names with accents.
 - Public pages offer a way back to the app, rather than "Log in", when you're already logged in.
 - The original app has been replaced. Its old addresses redirect to the new ones.
