@@ -63,7 +63,7 @@ LABEL org.opencontainers.image.title="SellTrack Nginx" \
       org.opencontainers.image.source="https://github.com/wrouigb/SellTrack" \
       org.opencontainers.image.revision="$REVISION"
 # Security fixes from since the base image was built.
-USER root
+USER 0
 RUN apk upgrade --no-cache
 USER 101
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
