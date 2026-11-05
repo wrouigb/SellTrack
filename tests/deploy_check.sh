@@ -18,7 +18,7 @@ migration_fails=$(printf 'e%.0s' {1..40})
 step() { printf '\n== %s\n' "$*"; }
 
 compose() {
-    IMAGE_TAG="$(cat "$stack/deployed-tag")" BACKUP_PATH="$stack/backups" docker compose \
+    IMAGE_REPO="$registry" IMAGE_TAG="$(cat "$stack/deployed-tag")" BACKUP_PATH="$stack/backups" docker compose \
         --project-name selltrack-prod --project-directory "$stack/release" \
         --env-file "$stack/.env" --file "$stack/release/compose.prod.yml" "$@"
 }

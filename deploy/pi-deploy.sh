@@ -36,7 +36,8 @@ read_tag() {
 compose() {
     local tag=$1
     shift
-    IMAGE_TAG="$tag" BACKUP_PATH="$backup_path" docker compose \
+    # A setting in the environment would otherwise beat the one in .env.
+    IMAGE_REPO="$repo" IMAGE_TAG="$tag" BACKUP_PATH="$backup_path" docker compose \
         --project-name "selltrack-$stack_name" \
         --project-directory "$stack_dir/release" \
         --env-file "$stack_dir/.env" \
