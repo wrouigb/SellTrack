@@ -1,0 +1,86 @@
+[project]
+name = "selltrack"
+version = "0.1.0"
+description = "Track what you sell, see what you make, and split the profit."
+readme = "README.md"
+requires-python = ">=3.12"
+# Lower bounds only. Exact, hashed versions are pinned in uv.lock (generated with `uv lock`).
+dependencies = [
+    "flask>=3.1",
+    "flask-sqlalchemy>=3.1",
+    "sqlalchemy>=2.0.36",
+    "flask-migrate>=4.0",
+    "psycopg[binary]>=3.2",
+    "flask-login>=0.6.3",
+    "flask-wtf>=1.2",
+    "argon2-cffi>=23.1",
+    "flask-limiter>=3.8",
+    "redis>=5.0",
+    "flask-caching>=2.3",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "structlog>=24.4",
+    "gunicorn>=23.0",
+    "sentry-sdk[flask]>=2.18",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "factory-boy>=3.3",
+    "pytest-playwright>=0.5",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+    "pip-audit>=2.7",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+xfail_strict = true
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise AssertionError"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["legacy", "migrations/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",   # pycodestyle, pyflakes
+    "I",             # import order
+    "B",             # bugbear
+    "UP",            # modern syntax
+    "S",             # security (bandit rules)
+    "SIM", "C4",     # simplifications
+    "N",             # naming
+    "PT",            # pytest style
+    "DTZ",           # timezone-aware datetimes
+    "RUF",
+]
+
+# The minus sign and multiplication sign are deliberate: they are how amounts and
+# formulas are displayed to users.
+allowed-confusables = ["\u2212", "\u00d7"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S311"]  # assert is how pytest works; random is fine for test data
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+exclude = ["^legacy/", "^migrations/"]
