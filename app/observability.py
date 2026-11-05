@@ -74,13 +74,21 @@ def configure_logging(*, json_logs: bool, level: str) -> None:
         structlog.processors.TimeStamper(fmt="iso", utc=True),
     ]
     renderer: structlog.types.Processor = (
-        structlog.processors.JSONRenderer() if json_logs else structlog.dev.ConsoleRenderer()
+        structlog.processors.JSONRenderer()
+        if json_logs
+        else structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback)
     )
     final: list[structlog.types.Processor] = [
         structlog.stdlib.ProcessorFormatter.remove_processors_meta
     ]
     if json_logs:
-        final.append(structlog.processors.dict_tracebacks)
+        # show_locals=False matters: by default every frame's local variables are written to the
+        # log, and in this app those include things like `password`.
+        final.append(
+            structlog.processors.ExceptionRenderer(
+                structlog.tracebacks.ExceptionDictTransformer(show_locals=False)
+            )
+        )
     final.append(renderer)
 
     structlog.configure(

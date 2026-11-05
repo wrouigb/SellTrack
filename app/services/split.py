@@ -41,7 +41,7 @@ from app.services.errors import (
     NotFoundError,
     ValidationFailed,
 )
-from app.services.notifications import Kind, notify
+from app.services.notifications import Kind, dismiss, notify
 from app.services.split_engine import (
     Issue,
     Payment,
@@ -107,7 +107,7 @@ def list_people(user_id: int, *, include_archived: bool = False) -> Sequence[Par
 def get_person(user_id: int, partner_id: int, *, for_update: bool = False) -> Partner:
     query = select(Partner).where(Partner.id == partner_id, Partner.user_id == user_id)
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     person = db.session.scalar(query)
     if person is None:
         raise NotFoundError("That person doesn't exist.")
@@ -176,6 +176,8 @@ def set_even_shares(user_id: int) -> Sequence[Partner]:
     if people:
         for person, share in zip(people, even_shares(len(people)), strict=True):
             person.share_pct = share
+        db.session.flush()
+        _warn_if_shares_off(user_id)
     db.session.commit()
     return people
 
@@ -229,9 +231,11 @@ def restore_person(user_id: int, partner_id: int) -> Partner:
     """Bring an archived person back at a 0% share, unless their name has been taken since."""
     _lock_account(user_id)
     person = get_person(user_id, partner_id)
+    if person.archived_at is None:
+        return person
+    needs_receiver = _usual_receiver_id(user_id) is None
     person.archived_at = None
-    if _usual_receiver_id(user_id) is None:
-        person.receives_money_default = True
+    person.receives_money_default = needs_receiver
     _flush_names(user_id)
     db.session.commit()
     return person
@@ -306,7 +310,7 @@ def add_cost(
 def get_cost(user_id: int, cost_id: int, *, for_update: bool = False) -> UpfrontCost:
     query = select(UpfrontCost).where(UpfrontCost.id == cost_id, UpfrontCost.user_id == user_id)
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     cost = db.session.scalar(query)
     if cost is None:
         raise NotFoundError("That cost doesn't exist.")
@@ -420,7 +424,7 @@ def get_payment(user_id: int, payment_id: int, *, for_update: bool = False) -> P
         PartnerPayment.id == payment_id, PartnerPayment.user_id == user_id
     )
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     payment = db.session.scalar(query)
     if payment is None:
         raise NotFoundError("That payment doesn't exist.")
@@ -553,12 +557,21 @@ def settle_up(user_id: int, *, actor_id: int | None = None) -> Settlement:
     the next period instead of being stamped without having been counted.
     """
     _lock_account(user_id)
-    # Shares can't change underneath the calculation.
-    db.session.scalars(select(Partner).where(Partner.user_id == user_id).with_for_update()).all()
+    # Shares can't change underneath the calculation. key_share=True is "FOR NO KEY UPDATE",
+    # which still stops updates but not the foreign key checks of a sale being saved. Those
+    # wait for nothing here, so that a sale edit holding a row this needs can always finish.
+    db.session.scalars(
+        select(Partner)
+        .where(Partner.user_id == user_id)
+        .order_by(Partner.id)
+        .with_for_update(key_share=True)
+        .execution_options(populate_existing=True)
+    ).all()
 
     sale_rows = db.session.execute(
         select(Sale.id, Sale.received_by_partner_id, Sale.price_paid, Sale.sale_date)
         .where(*_open_sales(user_id))
+        .order_by(Sale.id)
         .with_for_update()
     ).all()
     cost_rows = db.session.execute(
@@ -569,6 +582,7 @@ def settle_up(user_id: int, *, actor_id: int | None = None) -> Settlement:
             UpfrontCost.cost_date,
         )
         .where(UpfrontCost.user_id == user_id, UpfrontCost.settlement_id.is_(None))
+        .order_by(UpfrontCost.id)
         .with_for_update()
     ).all()
     payment_rows = db.session.execute(
@@ -580,6 +594,7 @@ def settle_up(user_id: int, *, actor_id: int | None = None) -> Settlement:
             PartnerPayment.paid_on,
         )
         .where(PartnerPayment.user_id == user_id, PartnerPayment.settlement_id.is_(None))
+        .order_by(PartnerPayment.id)
         .with_for_update()
     ).all()
 
@@ -675,15 +690,10 @@ def undo_last_settlement(user_id: int, *, actor_id: int | None = None) -> UndoRe
     settled_shares = {
         person["person_id"]: Decimal(person["share_pct"])
         for person in settlement.snapshot["people"]
+        if Decimal(person["share_pct"])
     }
-    current_shares = {
-        person.id: person.share_pct
-        for person in _active_people(user_id)
-        if person.share_pct or person.id in settled_shares
-    }
-    settled_with_a_share = {pid: pct for pid, pct in settled_shares.items() if pct}
-    current_with_a_share = {pid: pct for pid, pct in current_shares.items() if pct}
-    shares_changed = settled_with_a_share != current_with_a_share
+    current_shares = {p.id: p.share_pct for p in _active_people(user_id) if p.share_pct}
+    shares_changed = settled_shares != current_shares
 
     settlement_id = settlement.id
     audit.record(
@@ -858,20 +868,23 @@ def _flush_names(user_id: int) -> None:
 
 
 def _warn_if_shares_off(user_id: int) -> None:
-    total = db.session.scalar(
-        select(func.coalesce(func.sum(Partner.share_pct), 0)).where(
+    """Warn when shares don't total 100%, and clear the warning once they do."""
+    count, total = db.session.execute(
+        select(func.count(), func.coalesce(func.sum(Partner.share_pct), 0)).where(
             Partner.user_id == user_id, Partner.archived_at.is_(None)
         )
-    )
-    if total != _FULL_SHARE:
+    ).one()
+    if count and total != _FULL_SHARE:
         notify(
             user_id,
             Kind.SHARES_NOT_100,
             "Shares don't total 100%",
-            f"They currently total {total}%. You can't settle up until they do.",
+            "You can't settle up until they do.",
             url=_SPLIT_URL,
             unless_unread=True,
         )
+    else:
+        dismiss(user_id, Kind.SHARES_NOT_100)
 
 
 def _clean_category(errors: Errors, category: CostCategory | str) -> CostCategory | None:

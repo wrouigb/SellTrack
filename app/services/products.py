@@ -43,7 +43,7 @@ def margin_percent(cost: Decimal, sell_price: Decimal | None) -> Decimal | None:
 def get_product(user_id: int, product_id: int, *, for_update: bool = False) -> Product:
     query = select(Product).where(Product.id == product_id, Product.user_id == user_id)
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     product = db.session.scalar(query)
     if product is None:
         raise NotFoundError("That product doesn't exist.")

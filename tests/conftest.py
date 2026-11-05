@@ -47,6 +47,8 @@ def make_settings(**values: Any) -> Settings:
 def _require_services() -> None:
     """Fail loudly, because silently skipping would make a broken setup look like a pass."""
     url = database_url()
+    if "test" not in url.rsplit("/", 1)[-1]:
+        pytest.exit(f"Refusing to wipe a database whose name doesn't contain 'test': {url}")
     try:
         engine = sa.create_engine(normalise_database_url(url), connect_args={"connect_timeout": 3})
         with engine.connect():

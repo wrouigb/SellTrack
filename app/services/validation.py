@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
 
+from app.extensions import db
 from app.money import InvalidMoneyError, InvalidPercentError, to_money, to_percent
 from app.services.errors import ValidationFailed
 
@@ -28,7 +29,9 @@ class Errors:
         self.fields.setdefault(field, message)
 
     def raise_if_any(self) -> None:
+        """Stop if anything was wrong, ending the transaction so that no row stays locked."""
         if self.fields:
+            db.session.rollback()
             raise ValidationFailed(self.fields)
 
 

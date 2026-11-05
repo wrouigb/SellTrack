@@ -178,6 +178,9 @@ class TestLogin:
             ("//evil.example/", "/app"),
             ("/\\evil.example", "/app"),
             ("javascript:alert(1)", "/app"),
+            ("/\t/evil.example", "/app"),
+            ("/\n/evil.example", "/app"),
+            ("/ /evil.example", "/app"),
         ],
     )
     def test_next_only_goes_to_this_site(self, app, client, target, expected):
@@ -237,6 +240,15 @@ class TestLogin:
                 text = f"{entry.details}{entry.user_agent}"
                 assert "not-the-password" not in text
                 assert "nobody" not in text
+
+
+class TestAlreadyLoggedIn:
+    @pytest.mark.parametrize("path", ["/login", "/register", "/recover"])
+    def test_guest_pages_redirect_home(self, client, path):
+        register(client, "alex", PASSWORD)
+        response = client.get(path)
+        assert response.status_code == 302
+        assert response.headers["Location"] == "/app"
 
 
 class TestSuspended:
@@ -658,9 +670,8 @@ class TestAdminAccountCli:
         assert not _user(app, "boss").is_admin
 
 
-class TestUnused:
-    def test_session_lifetime_is_seven_days(self, app):
-        assert app.permanent_session_lifetime == timedelta(days=7)
+def test_session_lifetime_is_seven_days(app):
+    assert app.permanent_session_lifetime == timedelta(days=7)
 
 
 def test_user_factory_password_works(app, ctx):

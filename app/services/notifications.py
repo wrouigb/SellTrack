@@ -56,6 +56,19 @@ def notify(
     return notification
 
 
+def dismiss(user_id: int, kind: Kind) -> None:
+    """Mark a warning read because it's no longer true. Joins the current transaction."""
+    db.session.execute(
+        update(Notification)
+        .where(
+            Notification.user_id == user_id,
+            Notification.kind == kind.value,
+            Notification.read_at.is_(None),
+        )
+        .values(read_at=datetime.now(UTC))
+    )
+
+
 def list_for(
     user_id: int, *, unread_only: bool = False, limit: int = 50, offset: int = 0
 ) -> Sequence[Notification]:

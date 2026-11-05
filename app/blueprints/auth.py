@@ -7,7 +7,7 @@ from flask_login import current_user, logout_user
 from werkzeug.wrappers import Response
 
 from app.extensions import limiter
-from app.forms.auth import ActionForm, LoginForm, RecoverForm, RegisterForm
+from app.forms.auth import LoginForm, RecoverForm, RegisterForm
 from app.security import rate_limits
 from app.security.sessions import is_safe_redirect, start_session
 from app.services import auth as auth_service
@@ -76,8 +76,7 @@ def login() -> Response | str | tuple[str, int]:
 
 @bp.post("/logout")
 def logout() -> Response:
-    form = ActionForm()
-    if form.validate_on_submit() and current_user.is_authenticated:
+    if current_user.is_authenticated:
         auth_service.record_logout(current_user)
     logout_user()
     flash("You are logged out.", "good")

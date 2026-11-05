@@ -16,11 +16,13 @@ from werkzeug.wrappers import Response
 from app.extensions import db, login_manager
 from app.models import User
 
-#: Who can still load pages while they have a temporary password to replace.
+_LAST_CONTROL_OR_SPACE = 0x20
+#: What someone can still reach while they have a temporary password to replace.
 _ALLOWED_WHILE_PASSWORD_EXPIRED = {
     "auth.logout",
+    "health.healthz",
+    "health.readyz",
     "settings.change_password",
-    "settings.security",
     "static",
 }
 
@@ -65,6 +67,10 @@ def start_session(user: User) -> None:
 def is_safe_redirect(target: str | None) -> bool:
     """True only for a path on this site, so ``?next=`` can't send someone elsewhere after login."""
     if not target or not target.startswith("/") or target.startswith("//") or "\\" in target:
+        return False
+    # Browsers strip tabs and newlines from URLs, which would turn "/\t/evil.example" into
+    # "//evil.example".
+    if any(ord(character) <= _LAST_CONTROL_OR_SPACE for character in target):
         return False
     parts = urlsplit(target)
     return not parts.scheme and not parts.netloc

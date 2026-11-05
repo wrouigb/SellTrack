@@ -10,7 +10,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import ColumnElement, Date, func, select
+from sqlalchemy import ColumnElement, Date, func, literal_column, select
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.orm import Mapped
 
@@ -231,10 +231,12 @@ def series(user_id: int, period: Period) -> tuple[Literal["day", "month"], list[
         return "day", []
 
     bucket: Literal["day", "month"] = "day" if (last - first).days <= _DAILY_LIMIT_DAYS else "month"
+    # A literal rather than a bound parameter: Postgres has to see the SELECT and GROUP BY
+    # expressions as the same thing.
     column = (
         Sale.sale_date
         if bucket == "day"
-        else sql_cast(func.date_trunc("month", Sale.sale_date), Date)
+        else sql_cast(func.date_trunc(literal_column("'month'"), Sale.sale_date), Date)
     )
     rows = db.session.execute(
         select(column, func.sum(Sale.price_paid), func.sum(Sale.profit))

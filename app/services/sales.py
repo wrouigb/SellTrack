@@ -145,7 +145,7 @@ def get_sale(user_id: int, sale_id: int, *, for_update: bool = False) -> Sale:
         Sale.id == sale_id, Sale.user_id == user_id, Sale.deleted_at.is_(None)
     )
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     sale = db.session.scalar(query)
     if sale is None:
         raise NotFoundError("That sale doesn't exist.")
@@ -237,6 +237,7 @@ def restore_sales(user_id: int, sale_ids: Iterable[int]) -> int:
     rows = db.session.scalars(
         select(Sale)
         .where(Sale.user_id == user_id, Sale.id.in_(set(sale_ids)), Sale.deleted_at.is_not(None))
+        .order_by(Sale.id)
         .with_for_update()
     ).all()
     for sale in rows:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import structlog
 from flask import Flask, Response, jsonify, render_template, request
 from flask_wtf.csrf import CSRFError
+from sqlalchemy.exc import DataError
 from werkzeug.exceptions import HTTPException, InternalServerError
 
 from app.observability import current_request_id
@@ -47,6 +48,14 @@ def init_app(app: Flask) -> None:
     def handle_server_error(_error: InternalServerError) -> tuple[Response | str, int]:
         title, message = _MESSAGES[500]
         return _render(500, title, message)
+
+    # A value the database can't hold, such as an ID from a tampered form that's too big for a
+    # bigint. Whoever sent it made a bad request; it isn't a fault in the app.
+    @app.errorhandler(DataError)
+    def handle_data_error(error: DataError) -> tuple[Response | str, int]:
+        log.warning("request.bad_value", path=request.path, error=type(error.orig).__name__)
+        title, message = _MESSAGES[400]
+        return _render(400, title, message)
 
     @app.errorhandler(NotFoundError)
     def handle_not_found(_error: NotFoundError) -> tuple[Response | str, int]:
