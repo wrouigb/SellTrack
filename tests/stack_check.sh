@@ -29,6 +29,7 @@ SETTINGS
 
 # The compose file's relative paths are next to it, as they are in a release folder.
 compose() {
+    last_compose_call="$*"
     docker compose --project-directory "$root/deploy" --project-name selltrack-ci \
         --env-file "$stack/.env" --file "$root/deploy/compose.prod.yml" "$@"
 }
@@ -37,15 +38,18 @@ as_superuser() {
         --tuples-only --no-align --set=ON_ERROR_STOP=1
 }
 step() { printf '\n== %s\n' "$*"; }
+# The logs first, and the smoke check's own words after them, so that those are what's on screen.
 show_logs() {
-    local status=$? line=$1 command=$2
+    local status=$? line=$1 command=$2 last_call=$3
     trap - ERR
-    compose logs --tail=15 || true
     compose ps --all || true
+    compose logs --tail=20 web nginx || true
+    if [[ -f $stack/smoke.log ]]; then cat "$stack/smoke.log"; fi
     echo "FAILED, at line $line: $command" >&2
+    echo "The last compose call was: $last_call" >&2
     exit "$status"
 }
-trap 'show_logs "$LINENO" "$BASH_COMMAND"' ERR
+trap 'show_logs "$LINENO" "$BASH_COMMAND" "${last_compose_call:-}"' ERR
 
 step "database, roles and migrations, in the order a deploy does them"
 compose up --detach --wait db redis
@@ -57,7 +61,7 @@ step "everything else"
 compose up --detach --wait --remove-orphans
 
 step "the check that decides whether a deploy stays"
-compose run --rm smoke
+compose run --rm smoke 2>&1 | tee "$stack/smoke.log"
 
 step "through Nginx from outside"
 base=http://127.0.0.1:8081
@@ -103,7 +107,7 @@ compose run --rm db-roles
 compose up --detach --wait --remove-orphans
 after=$(echo 'SELECT count(*) FROM users' | as_superuser)
 test "$before" = "$after"
-compose run --rm smoke
+compose run --rm smoke 2>&1 | tee "$stack/smoke.log"
 if app_sql 'DELETE FROM audit_logs' 2>/dev/null; then
     echo "The audit log could be changed after a restore" >&2
     exit 1
