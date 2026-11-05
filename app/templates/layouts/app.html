@@ -1,0 +1,13 @@
+{% extends "layouts/base.html" %}
+{% block header %}
+<header>
+  <nav aria-label="Main">
+    <a href="{{ url_for('dashboard.home') }}">Home</a>
+    <a href="{{ url_for('settings.security') }}">Security</a>
+    <form method="post" action="{{ url_for('auth.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">Log out</button>
+    </form>
+  </nav>
+</header>
+{% endblock %}

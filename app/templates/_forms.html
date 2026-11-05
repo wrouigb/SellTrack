@@ -1,0 +1,7 @@
+{% macro field(item, autocomplete=None) %}
+<p>
+  {{ item.label }}<br>
+  {% if autocomplete %}{{ item(autocomplete=autocomplete, aria_invalid="true" if item.errors else "false") }}{% else %}{{ item(aria_invalid="true" if item.errors else "false") }}{% endif %}
+  {% for error in item.errors %}<br><strong role="alert">{{ error }}</strong>{% endfor %}
+</p>
+{% endmacro %}

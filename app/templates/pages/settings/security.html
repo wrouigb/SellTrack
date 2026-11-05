@@ -1,0 +1,37 @@
+{% extends "layouts/app.html" %}
+{% from "_forms.html" import field %}
+{% block title %}Security - SellTrack{% endblock %}
+{% block content %}
+<h1>Security</h1>
+
+<h2>Password</h2>
+<p><a href="{{ url_for('settings.change_password') }}">Change your password</a></p>
+
+<h2>Recovery codes</h2>
+<p>You have {{ codes_left }} unused recovery code{{ '' if codes_left == 1 else 's' }}.</p>
+<form method="post" action="{{ url_for('settings.regenerate_recovery_codes') }}" novalidate>
+  {{ password_form.hidden_tag() }}
+  {{ field(password_form.password, "current-password") }}
+  <button type="submit">Create new codes</button>
+</form>
+
+<h2>Log out everywhere</h2>
+<form method="post" action="{{ url_for('settings.logout_everywhere') }}">
+  {{ action_form.hidden_tag() }}
+  <button type="submit">Log out on every device</button>
+</form>
+
+<h2>Recent sign-ins</h2>
+<table>
+  <thead><tr><th scope="col">When (UTC)</th><th scope="col">Address</th><th scope="col">Device</th></tr></thead>
+  <tbody>
+    {% for sign_in in sign_ins %}
+    <tr>
+      <td>{{ sign_in.created_at | date }} {{ sign_in.created_at.strftime('%H:%M') }}</td>
+      <td>{{ sign_in.ip or 'Unknown' }}</td>
+      <td>{{ sign_in.user_agent or 'Unknown' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

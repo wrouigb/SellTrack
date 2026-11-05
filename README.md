@@ -1,48 +1,60 @@
-# SellTrack - sales tracker for any product
+# SellTrack
 
-A Flask + SQLite website where each person makes an account, saves their products and costs,
-records sales, and splits the profit.
+Track what you sell, see what you make, and split the profit fairly.
 
-## Folder layout
+> **Status: being rebuilt for production.** The backend is done (phase 3 of the plan in
+> [`docs/plan.md`](docs/plan.md)). The pages are placeholders until phase 4, so the sales,
+> products and split features can only be used through their services for now. The original
+> Flask/SQLite app is kept in [`legacy/`](legacy/) as the reference for those pages.
 
+## What's here
+
+| Path | What it is |
+|---|---|
+| `app/__init__.py`, `app/config.py` | App factory and configuration. Staging and production refuse to start without a strong secret, Postgres and debug off |
+| `app/models/` | The database schema (plan section 7) |
+| `migrations/` | Alembic migrations |
+| `app/money.py` | Exact AUD money: strict parsing, whole cents, en-AU formatting, totals that never lose a cent |
+| `app/services/` | The business rules: accounts, products, sales, reporting, the profit split, notifications, feature flags, audit log |
+| `app/security/` | Sessions, passwords (Argon2id), permissions, security headers, rate limits |
+| `app/blueprints/`, `app/forms/`, `app/templates/` | Thin routes and plain pages for sign-up, login, recovery and account security |
+| `tests/` | Unit tests, and integration tests on real Postgres and Redis |
+
+## Setting up
+
+You need Python 3.12+, [uv](https://docs.astral.sh/uv/), PostgreSQL 16 and Redis.
+
+```bash
+uv sync
+cp .env.example .env
+
+# As a Postgres superuser. The role only needs to own its databases, not be a superuser.
+psql -c "CREATE ROLE selltrack LOGIN PASSWORD 'selltrack'"
+psql -c "CREATE DATABASE selltrack_dev OWNER selltrack"
+psql -c "CREATE DATABASE selltrack_test OWNER selltrack"
+
+export FLASK_APP=app:create_app
+uv run flask db upgrade
+uv run flask users create-admin
+uv run flask run --debug
 ```
-sales_tracker/
-|-- app.py                # main flask app
-|-- templates/
-|   |-- base.html         # shared header / nav
-|   |-- login.html        # log in
-|   |-- register.html     # create an account
-|   |-- home.html         # totals + add a sale
-|   |-- sales.html        # all sales (search, edit, delete)
-|   |-- edit.html         # edit one sale
-|   |-- products.html     # your products + costs
-|   |-- product_edit.html # change a cost + cost history
-|   |-- split.html        # profit split
-|   `-- _sale_form.html   # the sale form (used by home + edit)
-`-- static/
-    |-- styles.css
-    `-- logo.svg
+
+## Checks
+
+```bash
+uv run pytest                        # add --cov for coverage
+uv run ruff check . && uv run ruff format --check .
+uv run mypy app
 ```
 
-The database (`tracker.db`) is created automatically in an `instance` folder the first time you run the app.
+Integration tests use `postgresql://selltrack:selltrack@localhost:5432/selltrack_test` and Redis
+database 15. Override them with `TEST_DATABASE_URL` and `TEST_REDIS_URL`. They fail, rather than
+skip, when either service is down. The test database is wiped on every run, so the tests refuse
+to run against a database whose name doesn't contain `test`.
 
-## How to run
+## Configuration
 
-1. `pip install flask flask_sqlalchemy`
-2. `python app.py`
-3. Open http://127.0.0.1:5000, create an account and add a product
+Every setting is listed and explained in [`.env.example`](.env.example). `APP_ENV` chooses between
+`development`, `testing`, `staging` and `production`.
 
-## Database tables
-
-- **User** - username + hashed password
-- **Product** - name, cost, selling price (belongs to a user)
-- **CostChange** - diary of every cost change for a product
-- **Sale** - date, customer, product, quantity, price paid, cost at the time of sale
-- **Partner** - name + % share for the profit split
-
-Every product, sale and partner is linked to a `user_id`, so people only ever see their own data.
-
-## How cost updates work
-
-When you save a sale, the product's cost at that moment is copied into the sale (`cost_each`).
-If you change the product's cost later, old sales keep their old cost and only new sales use the new one.
+Docker, deployment and full documentation arrive in phase 6.
