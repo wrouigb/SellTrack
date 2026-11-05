@@ -6,7 +6,17 @@ from flask import Flask
 
 
 def register_blueprints(app: Flask) -> None:
-    from app.blueprints import auth, dashboard, health, public, settings
+    from app.blueprints import (
+        auth,
+        dashboard,
+        health,
+        onboarding,
+        products,
+        public,
+        sales,
+        settings,
+        split,
+    )
 
-    for module in (public, auth, dashboard, settings, health):
+    for module in (public, auth, onboarding, dashboard, sales, products, split, settings, health):
         app.register_blueprint(module.bp)

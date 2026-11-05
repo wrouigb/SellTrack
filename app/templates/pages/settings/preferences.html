@@ -1,0 +1,14 @@
+{% extends "pages/settings/_layout.html" %}
+{% from "components/forms.html" import field, error_summary %}
+{% block title %}Preferences - SellTrack{% endblock %}
+{% block tab_content %}
+<div class="page-narrow-block">
+  {{ error_summary(form) }}
+  <form method="post" class="panel" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ field(form.theme) }}
+    {{ field(form.timezone, hint="Decides what counts as today and this month.") }}
+    <button class="btn btn-primary mt-5" type="submit">Save preferences</button>
+  </form>
+</div>
+{% endblock %}

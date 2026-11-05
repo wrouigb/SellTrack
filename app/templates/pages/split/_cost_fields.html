@@ -1,0 +1,14 @@
+{% from "components/forms.html" import field, money_field %}
+{% macro cost_fields(form, locked=False) %}
+  {{ field(form.description, hint="For example, stall fee or 50 stamps.", attrs={'autocomplete': 'off'}) }}
+  <div class="field-row">
+    {{ money_field(form.amount, attrs={'disabled': true} if locked else {}) }}
+    {{ field(form.paid_by_partner_id, attrs={'disabled': true} if locked else {}) }}
+  </div>
+  <div class="field-row">
+    {{ field(form.category) }}
+    {{ field(form.cost_date) }}
+  </div>
+  {{ field(form.product_id) }}
+  {{ field(form.notes) }}
+{% endmacro %}

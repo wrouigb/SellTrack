@@ -1,0 +1,20 @@
+{% extends "pages/split/_layout.html" %}
+{% from "components/forms.html" import error_summary %}
+{% from "pages/split/_payment_fields.html" import payment_fields %}
+{% set tab = 'payments' %}
+{% block title %}Edit payment - SellTrack{% endblock %}
+{% block tab_content %}
+<div class="page-narrow-block">
+  <h2 class="mb-4">Edit payment</h2>
+  {{ error_summary(form) }}
+  {% if locked %}<p class="notice mb-5">This payment is part of a settle-up, so who paid whom and the amount are locked. <a href="{{ url_for('split.history') }}">Undo the settle-up</a> to change them.</p>{% endif %}
+  <form method="post" class="panel" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ payment_fields(form, locked=locked) }}
+    <div class="button-row mt-5">
+      <button class="btn btn-primary" type="submit">Save changes</button>
+      <a class="btn btn-ghost" href="{{ url_for('split.payments') }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

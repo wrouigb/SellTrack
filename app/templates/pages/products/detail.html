@@ -1,0 +1,64 @@
+{% extends "layouts/app.html" %}
+{% from "components/forms.html" import field, money_field, error_summary %}
+{% block title %}{{ product.name }} - SellTrack{% endblock %}
+{% block page_class %}page-narrow{% endblock %}
+{% block content %}
+<p class="mb-2"><a href="{{ url_for('products.list_products') }}">Products</a></p>
+<h1 class="mb-5 break-words">{{ product.name }} {% if product.archived_at %}<span class="badge badge-neutral align-middle">Archived</span>{% endif %}</h1>
+<div class="stack">
+  {{ error_summary(form) }}
+  <form method="post" class="panel" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ field(form.name, attrs={'autocomplete': 'off'}) }}
+    <div class="field-row">
+      {{ money_field(form.cost, hint="Past sales keep the cost they were made at. Only new sales use a new cost.") }}
+      {{ money_field(form.sell_price, hint="Optional." if margin is none else "Margin is " ~ margin ~ "% at this price.") }}
+    </div>
+    <div class="button-row mt-5">
+      <button class="btn btn-primary" type="submit">Save changes</button>
+      <a class="btn btn-ghost" href="{{ url_for('products.list_products') }}">Cancel</a>
+    </div>
+  </form>
+
+  <section aria-labelledby="history-heading">
+    <h2 id="history-heading" class="mb-3">Cost history</h2>
+    <div class="table-wrap">
+      <table class="table" role="table">
+        <thead><tr role="row"><th scope="col" role="columnheader">Changed</th><th scope="col" role="columnheader" class="cell-num">From</th><th scope="col" role="columnheader" class="cell-num">To</th></tr></thead>
+        <tbody>
+          {% for change in history %}
+          <tr role="row">
+            <td role="cell" class="num">{{ change.changed_at | local_datetime }}</td>
+            <td role="cell" class="cell-num">{{ change.old_cost | money if change.old_cost is not none else 'First cost' }}</td>
+            <td role="cell" class="cell-num">{{ change.new_cost | money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="remove-heading" class="panel">
+    <h2 id="remove-heading">Stop selling this</h2>
+    {% if product.archived_at %}
+      <p class="soft mt-1 mb-4">This product is archived, so you can't choose it for new sales.</p>
+      <form method="post" action="{{ url_for('products.restore', product_id=product.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-secondary" type="submit">Restore product</button>
+      </form>
+    {% else %}
+      <p class="soft mt-1 mb-4">Archiving hides it from new sales and keeps its history. Deleting removes it and its cost history for good. Either way, past sales are kept.</p>
+      <div class="button-row">
+        <form method="post" action="{{ url_for('products.archive', product_id=product.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-secondary" type="submit">Archive product</button>
+        </form>
+        <form method="post" action="{{ url_for('products.delete', product_id=product.id) }}" data-confirm="Delete {{ product.name }} and its cost history? Past sales are kept, but this can't be undone." data-confirm-label="Delete product">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-danger" type="submit">Delete product</button>
+        </form>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

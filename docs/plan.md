@@ -1,6 +1,6 @@
 # SellTrack: Audit & Implementation Plan (v2)
 
-**Status:** **Approved** 5 Nov 2026 (split basis A: real money). Phase 3 built and awaiting review, see section 12 · **Repo:** `wrouigb/SellTrack` (private) · **Date:** 5 Nov 2026 · **Scope:** turn the existing Flask/SQLite SellTrack app into a production-ready full-stack app, self-hosted cheaply (Raspberry Pi or small VPS).
+**Status:** **Approved** 5 Nov 2026 (split basis A: real money). Phases 3 and 4 built and awaiting merge, see section 12 · **Repo:** `wrouigb/SellTrack` (private) · **Date:** 5 Nov 2026 · **Scope:** turn the existing Flask/SQLite SellTrack app into a production-ready full-stack app, self-hosted cheaply (Raspberry Pi or small VPS).
 
 ---
 
@@ -391,6 +391,13 @@ The brand (navy `#1f4e79`, cream `#f5f0e6`, price-tag logo) is refreshed, not re
   - A unit test checks every token colour pair is ≥ 4.5:1.
 - **Mobile-first:** designed at 360px.
 
+Decisions made while building (phase 4):
+- **The swing tag** is the one bold element. It's a manila luggage label with a punched hole, used only for money owed, such as "Sam pays Alex $32.50". Everything around it is a quiet ledger: the dashboard's figures are one strip, not a row of separate cards.
+- **Tabular numbers** are used on all money, as above, including large figures.
+- **Skeleton loaders were dropped.** Pages are drawn on the server, so nothing loads in pieces. While filters fetch new results, the old ones stay in place, dimmed.
+- **The chart** is SVG drawn on the server: money in and profit as columns on one axis, with a table view, plus hover and arrow-key readouts. Its colours passed a colour-blindness check in both themes.
+- **Comparisons are like for like.** A month or year in progress is compared with the same days of the one before, because five days of November against all of October would look like a fall every month.
+
 ---
 
 ## 9. Quality, CI/CD and deployment
@@ -470,10 +477,10 @@ Checkpoints: I pause for review after phases 3 and 4. I deliver each phase as a 
 
 ## 12. Progress and handoff
 
-**Done (5 Nov 2026):** phase 3, on branch **`phase-3-backend-foundations`**, delivered as a pull request into `main` and paused for review (section 10).
-- `legacy/` holds the original app. Its templates are the reference for phase 4; delete it at the end of phase 4.
-- Every item in the phase 3 row of section 10 is built. Sign-up, login, recovery and account security have routes with plain, unstyled pages; products, sales, reporting and the split are services only until phase 4 adds their pages.
-- Tests run on real Postgres 16 and Redis, as a role that owns its database but isn't a superuser. Coverage is 99% overall.
+**Done (5 Nov 2026):**
+- **Phase 3**, on branch `phase-3-backend-foundations`: [pull request #1](https://github.com/wrouigb/SellTrack/pull/1). Reviewed, not yet merged.
+- **Phase 4**, on branch `phase-4-frontend`, built on top of phase 3 and delivered as its own pull request, paused for review (section 10). Every item in the phase 4 row of section 10 is built, and `legacy/` has been deleted. axe and keyboard checks pass on every page, in light and dark, at desktop width and at 360px.
+- Tests run on real Postgres 16 and Redis, as a role that owns its database but isn't a superuser, plus a real browser for the pages.
 
 **How the split rules were settled** (section 3 left these open; the usual receiver, archiving and undo rules were confirmed on 5 Nov 2026):
 - **Usual receiver:** written onto each sale when it's saved, so changing the usual receiver later never moves old sales. A sale saved while there's no usual receiver is written to whoever becomes the usual receiver next, and stays with them. If several people remain and none is the usual receiver, the user has to choose before settling.
@@ -486,14 +493,14 @@ Checkpoints: I pause for review after phases 3 and 4. I deliver each phase as a 
 **Also confirmed on 5 Nov 2026:** failed logins are limited to 5 a minute per username, accepting that someone could keep a known username locked out, and the added `sign_ins` table stays.
 
 **Left for later phases, as planned:**
-- Phase 4: all designed pages; forms for products, sales and the split; the time zone and theme settings; showing sign-in times in the user's time zone.
-- Phase 5: admin console; `services/support.py`, `services/export.py`, `services/entitlements.py`; Flask-Caching; scheduler and cleanup jobs (purge sales deleted over 30 days ago, trim old sign-ins).
-- Phase 6: `deploy/db-roles.sql`, which is what makes the audit log insert-only at the database level (until then it's only by convention in the code); Docker; CI, including pip-audit and the other scans.
+- Phase 5: admin console; the notifications page and bell, because notifications are saved but can't be read yet; the support form on the help page, with `services/support.py`; the full data export, with `services/export.py` extended to a zip (the sales CSV is already there); `services/entitlements.py`; Flask-Caching; scheduler and cleanup jobs (purge sales deleted over 30 days ago, trim old sign-ins).
+- Phase 6: `deploy/db-roles.sql`, which is what makes the audit log insert-only at the database level (until then it's only by convention in the code); Docker; Nginx, including long-cache headers for hashed assets; CI, including pip-audit and the other scans.
 
 **Working in the cloud workspace:**
-- `uv sync` installs everything.
+- `uv sync && npm ci && npm run build` installs and builds everything.
 - Postgres 16 and Redis are installed but not running. Start them with `pg_ctlcluster 16 main start` and `redis-server --daemonize yes`, then create the role and databases as in the README.
-- `gh` REST calls work (`gh api repos/wrouigb/SellTrack/...`), but GraphQL commands such as `gh pr list` don't.
+- Browser tests need `E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell`. Don't run `playwright install` there.
+- `gh` REST calls work (`gh api repos/wrouigb/SellTrack/...`), but GraphQL commands such as `gh pr list` don't. Merging through the API was blocked as a merge without review, so the user merges pull requests themselves.
 
 ---
 

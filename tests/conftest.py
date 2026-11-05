@@ -26,6 +26,11 @@ DEFAULT_DATABASE_URL = "postgresql://selltrack:selltrack@localhost:5432/selltrac
 DEFAULT_REDIS_URL = "redis://localhost:6379/15"
 
 
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Run browser tests last: they're the slowest, and they keep their own data in the database."""
+    items.sort(key=lambda item: "e2e" in item.path.parts)
+
+
 def database_url() -> str:
     return os.environ.get("TEST_DATABASE_URL", DEFAULT_DATABASE_URL)
 

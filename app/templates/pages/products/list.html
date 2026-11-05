@@ -1,0 +1,76 @@
+{% extends "layouts/app.html" %}
+{% from "components/forms.html" import field, money_field, error_summary %}
+{% from "components/ui.html" import empty_state, sort_header %}
+{% block title %}Products - SellTrack{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Products</h1></div>
+
+<details class="panel add-panel mb-6" {% if form.errors or not rows and not searching and not search.archived.data %}open{% endif %}>
+  <summary class="add-summary">Add a product</summary>
+  <div class="mt-4">
+    {{ error_summary(form) }}
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ field(form.name, attrs={'autocomplete': 'off'}) }}
+      <div class="field-row">
+        {{ money_field(form.cost, hint="What one item costs you.") }}
+        {{ money_field(form.sell_price, hint="Optional. Fills in the price when you add a sale.") }}
+      </div>
+      <button class="btn btn-primary mt-5" type="submit">Add product</button>
+    </form>
+  </div>
+</details>
+
+<form method="get" class="product-search" role="search"
+      hx-get="{{ url_for('products.list_products') }}"
+      hx-trigger="input changed delay:300ms from:input[type=search], change"
+      hx-select="#product-results" hx-target="#product-results" hx-swap="outerHTML"
+      hx-push-url="true" hx-indicator="#product-results">
+  {{ field(search.q, attrs={'autocomplete': 'off'}) }}
+  <label class="check">{{ search.archived() }} {{ search.archived.label.text }}</label>
+  <button class="btn btn-secondary" type="submit">Search</button>
+</form>
+
+<div id="product-results" class="refresh-dims"
+     hx-target="#product-results" hx-select="#product-results" hx-swap="outerHTML"
+     hx-push-url="true" hx-indicator="#product-results">
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="table table-stack" role="table">
+      <caption class="sr-only">Your products. Column headings sort the table.</caption>
+      <thead>
+        <tr role="row">
+          {{ sort_header("Name", "name", sort, descending) }}
+          {{ sort_header("Cost", "cost", sort, descending, numeric=True) }}
+          {{ sort_header("Selling price", "sell_price", sort, descending, numeric=True) }}
+          {{ sort_header("Margin", "margin", sort, descending, numeric=True) }}
+          {{ sort_header("Sales", "sales", sort, descending, numeric=True) }}
+          <th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr role="row">
+          <td role="cell" class="cell-title">
+            {{ row.product.name }}
+            {% if row.product.archived_at %}<span class="badge badge-neutral">Archived</span>{% endif %}
+          </td>
+          <td role="cell" data-label="Cost" class="cell-num">{{ row.product.cost | money }}</td>
+          <td role="cell" data-label="Selling price" class="cell-num">{{ row.product.sell_price | money if row.product.sell_price is not none else 'Not set' }}</td>
+          <td role="cell" data-label="Margin" class="cell-num {{ 'loss' if row.margin_pct is not none and row.margin_pct < 0 }}">{{ row.margin_pct | percent if row.margin_pct is not none else 'Not set' }}</td>
+          <td role="cell" data-label="Sales" class="cell-num">{{ row.sale_count }}</td>
+          <td role="cell" class="cell-actions">
+            <a class="btn btn-ghost btn-small" href="{{ url_for('products.detail', product_id=row.product.id) }}">Change<span class="sr-only"> {{ row.product.name }}</span></a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif searching %}
+    <div class="panel">{{ empty_state("No products match", "Try a different search.", url_for('products.list_products'), "Clear search") }}</div>
+  {% else %}
+    <div class="panel">{{ empty_state("No products yet", "Add what you sell using the form above. You only need a name and what it costs you.") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -30,7 +30,7 @@ dev = [
     "pytest>=9.0",
     "pytest-cov>=7.0",
     "factory-boy>=3.3",
-    "pytest-playwright>=0.10",
+    "playwright>=1.64",
     "ruff>=0.17",
     "mypy>=2.0",
     "pre-commit>=4.7",
@@ -46,6 +46,7 @@ addopts = "-ra --strict-markers"
 xfail_strict = true
 markers = [
     "integration: needs real Postgres and Redis (TEST_DATABASE_URL, TEST_REDIS_URL)",
+    "e2e: browser tests, which also need built assets (npm run build) and Chromium",
 ]
 
 [tool.coverage.run]
@@ -60,7 +61,7 @@ exclude_also = ["if TYPE_CHECKING:", "raise AssertionError"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-extend-exclude = ["legacy", "migrations"]
+extend-exclude = ["migrations"]
 
 [tool.ruff.lint]
 select = [
@@ -92,7 +93,7 @@ allowed-confusables = ["\u2212", "\u00d7"]
 python_version = "3.12"
 strict = true
 warn_unreachable = true
-exclude = ["^legacy/", "^migrations/"]
+exclude = ["^migrations/"]
 
 # These ship without type information.
 [[tool.mypy.overrides]]

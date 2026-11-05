@@ -1,0 +1,208 @@
+{% extends "layouts/app.html" %}
+{% from "components/ui.html" import owed_tag, square_tag, empty_state, icon %}
+{% from "components/forms.html" import field %}
+{% block title %}Overview - SellTrack{% endblock %}
+
+{% macro change_line(change, money, compare, up_is_good=True) %}
+  {% if change %}
+    {% set amount = change.amount | int if not money else change.amount %}
+    <span class="figure-change">
+      {% if change.amount == 0 %}
+        Same as {{ compare }}
+      {% else %}
+        {% set good = (change.amount > 0) == up_is_good %}
+        <span class="{{ '' if up_is_good is none else 'change-good' if good else 'change-bad' }}">
+          {% if money %}{{ change.amount | signed_money }}{% else %}{{ '+' if amount > 0 else '−' }}{{ amount | abs }}{% endif %}
+        </span>
+        vs {{ compare }}
+      {% endif %}
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro figure(label, value, change, money, compare, up_is_good=True) %}
+<div class="figure">
+  <span class="figure-label">{{ label }}</span>
+  <span class="figure-value">{{ value }}</span>
+  {{ change_line(change, money, compare, up_is_good) }}
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Overview</h1>
+  <form method="get" class="period-form"
+        hx-get="{{ url_for('dashboard.home') }}" hx-trigger="change"
+        hx-select="#dashboard-body" hx-target="#dashboard-body" hx-swap="outerHTML" hx-push-url="true"
+        hx-indicator="#dashboard-body" x-data="periodPicker">
+    {{ field(form.period, attrs={'x-on:change': 'changed', 'x-ref': 'period'}) }}
+    <div class="period-dates" {% if form.period.data != 'custom' %}hidden{% endif %} x-ref="dates">
+      {{ field(form.date_from) }}
+      {{ field(form.date_to) }}
+    </div>
+    <button class="btn btn-secondary" type="submit">Show</button>
+  </form>
+</div>
+
+<div id="dashboard-body" class="stack refresh-dims">
+  {% if problem %}<p class="notice notice-warning" role="status">{{ problem }}</p>{% endif %}
+
+  <div class="owed-and-next {{ 'has-steps' if steps }}">
+    <section aria-labelledby="owed-heading" class="owed">
+      <h2 id="owed-heading" class="mb-3">Who owes whom</h2>
+      {% if not has_people %}
+        {{ square_tag("Just you so far") }}
+        <p class="soft mt-3">Add the people you share the profit with, and this shows who owes whom. <a href="{{ url_for('split.people') }}">Add people</a></p>
+      {% elif split_result.issues %}
+        {{ square_tag("Not worked out yet") }}
+        <p class="soft mt-3"><a href="{{ url_for('split.overview') }}">Open the split</a> to see what's needed.</p>
+      {% elif split_result.transfers %}
+        <div class="grid gap-3">
+          {% for transfer in split_result.transfers %}{{ owed_tag(transfer) }}{% endfor %}
+        </div>
+        <p class="mt-3"><a href="{{ url_for('split.overview') }}">Open the split</a></p>
+      {% else %}
+        {{ square_tag("Everyone is square") }}
+        <p class="mt-3"><a href="{{ url_for('split.overview') }}">Open the split</a></p>
+      {% endif %}
+    </section>
+
+    {% if steps %}
+    <section aria-labelledby="next-heading" class="panel">
+      <h2 id="next-heading" class="mb-3">Next steps</h2>
+      <ul class="next-steps">
+        {% for step in steps %}
+          <li>
+            <span>{{ step.text }}</span>
+            <a href="{{ step.url }}">{{ step.action }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+
+  <section aria-label="Figures for this period" class="figures">
+    {{ figure("Money in", summary.totals.money_in | money, summary.changes.get('money_in'), true, compare) }}
+    {{ figure("Profit on sales", summary.totals.profit | money, summary.changes.get('profit'), true, compare) }}
+    {{ figure("Upfront costs", summary.totals.upfront_costs | money, summary.changes.get('upfront_costs'), true, compare, none) }}
+    {{ figure("Items sold", summary.totals.items_sold, summary.changes.get('items_sold'), false, compare) }}
+    {{ figure("Sales", summary.totals.sales_count, summary.changes.get('sales_count'), false, compare) }}
+    {{ figure("Average sale", summary.totals.average_sale | money, summary.changes.get('average_sale'), true, compare) }}
+  </section>
+
+  <section aria-labelledby="chart-heading" class="panel">
+    <div class="panel-head">
+      <h2 id="chart-heading">Money in and profit</h2>
+      {% if chart %}
+      <div class="legend" aria-hidden="true">
+        <span class="legend-item"><span class="swatch swatch-money"></span> Money in</span>
+        <span class="legend-item"><span class="swatch swatch-profit"></span> Profit</span>
+      </div>
+      {% endif %}
+    </div>
+    {% if chart %}
+      <div class="chart" x-data="chart" x-on:pointermove="point" x-on:pointerleave="leave"
+           x-on:keydown="key" x-on:blur="leave" tabindex="0" role="group"
+           aria-label="{{ chart.description }} Use the left and right arrow keys to read each {{ bucket }}, or open the table below.">
+        <div class="tooltip" x-ref="tip" hidden aria-live="polite">
+          <div class="font-semibold mb-1" x-ref="tipLabel"></div>
+          <div class="tooltip-row"><span class="legend-item"><span class="swatch swatch-money"></span> Money in</span> <strong x-ref="tipMoney"></strong></div>
+          <div class="tooltip-row"><span class="legend-item"><span class="swatch swatch-profit"></span> Profit</span> <strong x-ref="tipProfit"></strong></div>
+        </div>
+        <div class="chart-frame">
+          <div class="chart-ticks" aria-hidden="true">
+            {% for label in chart.tick_labels %}<span>{{ label }}</span>{% endfor %}
+          </div>
+          <svg class="chart-plot" viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            {% for y in chart.grid_ys %}<line class="chart-grid" x1="0" x2="1000" y1="{{ y }}" y2="{{ y }}"/>{% endfor %}
+            <line class="chart-axis" x1="0" x2="1000" y1="{{ chart.baseline_y }}" y2="{{ chart.baseline_y }}"/>
+            {% for band in chart.bands %}
+              <rect class="chart-hit" x="{{ band.x }}" y="0" width="{{ band.width }}" height="300"
+                    data-label="{{ band.label }}" data-money="{{ band.money_text }}" data-profit="{{ band.profit_text }}"/>
+              {% if band.money_path %}<path class="mark-money" d="{{ band.money_path }}"/>{% endif %}
+              {% if band.profit_path %}<path class="mark-profit" d="{{ band.profit_path }}"/>{% endif %}
+            {% endfor %}
+          </svg>
+          <div class="chart-dates" aria-hidden="true">
+            {% for label in chart.x_labels %}<span>{{ label }}</span>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <details class="more mt-2">
+        <summary>Show this as a table</summary>
+        <div class="table-wrap mt-2">
+          <table class="table" role="table">
+            <caption class="sr-only">Money in and profit by {{ bucket }}</caption>
+            <thead><tr role="row">
+              <th scope="col" role="columnheader">{{ bucket | capitalize }}</th>
+              <th scope="col" role="columnheader" class="cell-num">Money in</th>
+              <th scope="col" role="columnheader" class="cell-num">Profit</th>
+            </tr></thead>
+            <tbody>
+              {% for band in chart.bands if band.money_path or band.profit_path %}
+              <tr role="row"><td role="cell">{{ band.label }}</td><td role="cell" class="cell-num">{{ band.money_text }}</td><td role="cell" class="cell-num">{{ band.profit_text }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    {% else %}
+      {{ empty_state("No sales in this period", "Record a sale, or choose a different period.", url_for('sales.new_sale'), "Add sale") }}
+    {% endif %}
+  </section>
+
+  <div class="two-up">
+    <section aria-labelledby="top-heading" class="panel">
+      <div class="panel-head">
+        <h2 id="top-heading">Top products</h2>
+        <a href="{{ url_for('products.list_products') }}">All products</a>
+      </div>
+      {% if top_products %}
+        {% set most = (top_products | map(attribute='profit') | max) %}
+        <ol class="bar-list">
+          {% for row in top_products %}
+          <li>
+            <div class="flex justify-between gap-4">
+              <span class="min-w-0 break-words">{{ row.name }}</span>
+              <span class="num whitespace-nowrap {{ 'loss' if row.profit < 0 }}">{{ row.profit | money }}</span>
+            </div>
+            <svg class="bar-track" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+              {% if row.profit > 0 and most > 0 %}<rect width="{{ (row.profit / most * 100) | round(2) }}" height="10" rx="1.200"/>{% endif %}
+            </svg>
+            <span class="soft text-sm">{{ row.quantity }} sold for {{ row.money_in | money }}</span>
+          </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="soft">Nothing sold in this period.</p>
+      {% endif %}
+    </section>
+
+    <section aria-labelledby="recent-heading" class="panel">
+      <div class="panel-head">
+        <h2 id="recent-heading">Latest sales</h2>
+        <a href="{{ url_for('sales.list_sales') }}">All sales</a>
+      </div>
+      {% if recent %}
+        <ul class="ledger">
+          {% for sale in recent %}
+          <li>
+            <span class="min-w-0">
+              <span class="block break-words font-medium">{{ sale.product_name }}{% if sale.quantity > 1 %} × {{ sale.quantity }}{% endif %}</span>
+              <span class="soft text-sm">{{ sale.sale_date | date }}{% if sale.customer_name %}, {{ sale.customer_name }}{% endif %}</span>
+            </span>
+            <span class="text-right whitespace-nowrap">
+              <span class="block num font-medium">{{ sale.price_paid | money }}</span>
+              <span class="num text-sm {{ 'loss' if sale.profit < 0 else 'soft' }}">{{ sale.profit | money }} profit</span>
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="soft">No sales yet.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

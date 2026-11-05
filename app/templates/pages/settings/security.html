@@ -1,37 +1,60 @@
-{% extends "layouts/app.html" %}
-{% from "_forms.html" import field %}
+{% extends "pages/settings/_layout.html" %}
+{% from "components/forms.html" import field %}
 {% block title %}Security - SellTrack{% endblock %}
-{% block content %}
-<h1>Security</h1>
+{% block tab_content %}
+<div class="stack">
+  <div class="two-up">
+    <section class="panel">
+      <h2>Password</h2>
+      <p class="soft mt-1 mb-4">Changing it logs out your other devices.</p>
+      <a class="btn btn-secondary" href="{{ url_for('settings.change_password') }}">Change password</a>
+    </section>
+    <section class="panel">
+      <h2>Log out everywhere</h2>
+      <p class="soft mt-1 mb-4">Ends every session on every device, including this one.</p>
+      <form method="post" action="{{ url_for('settings.logout_everywhere') }}" data-confirm="Log out on every device, including this one?" data-confirm-label="Log out everywhere">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-secondary" type="submit">Log out everywhere</button>
+      </form>
+    </section>
+  </div>
 
-<h2>Password</h2>
-<p><a href="{{ url_for('settings.change_password') }}">Change your password</a></p>
+  <section class="panel">
+    <h2>Recovery codes</h2>
+    <p class="mt-1">You have {{ codes_left }} unused recovery code{{ '' if codes_left == 1 else 's' }}.</p>
+    <p class="soft mt-1 mb-4">Creating new codes makes your old ones stop working. Enter your password to continue.</p>
+    <form method="post" action="{{ url_for('settings.regenerate_recovery_codes') }}" class="inline-form" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ field(password_form.password, attrs={'autocomplete': 'current-password'}) }}
+      <button class="btn btn-secondary" type="submit">Create new codes</button>
+    </form>
+  </section>
 
-<h2>Recovery codes</h2>
-<p>You have {{ codes_left }} unused recovery code{{ '' if codes_left == 1 else 's' }}.</p>
-<form method="post" action="{{ url_for('settings.regenerate_recovery_codes') }}" novalidate>
-  {{ password_form.hidden_tag() }}
-  {{ field(password_form.password, "current-password") }}
-  <button type="submit">Create new codes</button>
-</form>
-
-<h2>Log out everywhere</h2>
-<form method="post" action="{{ url_for('settings.logout_everywhere') }}">
-  {{ action_form.hidden_tag() }}
-  <button type="submit">Log out on every device</button>
-</form>
-
-<h2>Recent sign-ins</h2>
-<table>
-  <thead><tr><th scope="col">When (UTC)</th><th scope="col">Address</th><th scope="col">Device</th></tr></thead>
-  <tbody>
-    {% for sign_in in sign_ins %}
-    <tr>
-      <td>{{ sign_in.created_at | date }} {{ sign_in.created_at.strftime('%H:%M') }}</td>
-      <td>{{ sign_in.ip or 'Unknown' }}</td>
-      <td>{{ sign_in.user_agent or 'Unknown' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+  <section>
+    <h2 class="mb-3">Recent sign-ins</h2>
+    {% if sign_ins %}
+    <div class="table-wrap">
+      <table class="table table-stack" role="table">
+        <caption class="sr-only">The most recent sign-ins to this account</caption>
+        <thead><tr role="row">
+          <th scope="col" role="columnheader">When</th>
+          <th scope="col" role="columnheader">Address</th>
+          <th scope="col" role="columnheader">Device</th>
+        </tr></thead>
+        <tbody>
+          {% for sign_in in sign_ins %}
+          <tr role="row">
+            <td role="cell" class="cell-title num">{{ sign_in.created_at | local_datetime }}</td>
+            <td role="cell" data-label="Address" class="num">{{ sign_in.ip or 'Unknown' }}</td>
+            <td role="cell" data-label="Device">{{ sign_in.user_agent or 'Unknown' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="soft">No sign-ins recorded yet.</p>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

@@ -1,13 +1,48 @@
 {% extends "layouts/base.html" %}
-{% block header %}
-<header>
-  <nav aria-label="Main">
-    <a href="{{ url_for('dashboard.home') }}">Home</a>
-    <a href="{{ url_for('settings.security') }}">Security</a>
-    <form method="post" action="{{ url_for('auth.logout') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit">Log out</button>
-    </form>
-  </nav>
+{% from "components/ui.html" import toasts, confirm_dialog, icon %}
+{% set section = request.blueprint %}
+{% block body %}
+<header class="band">
+  <div class="band-inner">
+    <a class="brand" href="{{ url_for('dashboard.home') }}">
+      <img src="{{ asset('logo.svg') }}" alt="" width="32" height="32"> SellTrack
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a class="nav-link" href="{{ url_for('dashboard.home') }}" {% if section == 'dashboard' %}aria-current="page"{% endif %}>Overview</a>
+      <a class="nav-link" href="{{ url_for('sales.list_sales') }}" {% if section == 'sales' %}aria-current="page"{% endif %}>Sales</a>
+      <a class="nav-link" href="{{ url_for('products.list_products') }}" {% if section == 'products' %}aria-current="page"{% endif %}>Products</a>
+      <a class="nav-link" href="{{ url_for('split.overview') }}" {% if section == 'split' %}aria-current="page"{% endif %}>Split</a>
+    </nav>
+    <span class="ml-auto md:hidden"></span>
+    <a class="btn btn-primary band-sale" href="{{ url_for('sales.new_sale') }}">Add sale</a>
+    <details class="menu" x-data="menu" x-on:click.outside="closeQuietly" x-on:keydown.escape="close">
+      <summary aria-label="Account menu for {{ current_user.username }}">
+        <span class="menu-name">{{ current_user.username }}</span>
+        {{ icon('chevron') }}
+      </summary>
+      <div class="menu-list">
+        <a href="{{ url_for('settings.account') }}">Settings</a>
+        <a href="{{ url_for('public.help_page') }}">Help</a>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit">Log out</button>
+        </form>
+      </div>
+    </details>
+  </div>
 </header>
+<main id="main" tabindex="-1">
+  <div class="page {% block page_class %}{% endblock %}">
+    {{ toasts() }}
+    {% block content %}{% endblock %}
+  </div>
+  <a class="btn btn-primary fab" href="{{ url_for('sales.new_sale') }}">{{ icon('plus') }} Sale</a>
+</main>
+<nav class="tabbar" aria-label="Main, on small screens">
+  <a href="{{ url_for('dashboard.home') }}" {% if section == 'dashboard' %}aria-current="page"{% endif %}>{{ icon('home') }} Overview</a>
+  <a href="{{ url_for('sales.list_sales') }}" {% if section == 'sales' %}aria-current="page"{% endif %}>{{ icon('receipt') }} Sales</a>
+  <a href="{{ url_for('products.list_products') }}" {% if section == 'products' %}aria-current="page"{% endif %}>{{ icon('tag') }} Products</a>
+  <a href="{{ url_for('split.overview') }}" {% if section == 'split' %}aria-current="page"{% endif %}>{{ icon('split') }} Split</a>
+</nav>
+{{ confirm_dialog() }}
 {% endblock %}

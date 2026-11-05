@@ -1,0 +1,41 @@
+{% extends "pages/split/_layout.html" %}
+{% from "components/ui.html" import empty_state %}
+{% set tab = 'history' %}
+{% block title %}Settle-up history - SellTrack{% endblock %}
+{% block tab_content %}
+{% if settlements %}
+<div class="stack">
+  <div class="table-wrap">
+    <table class="table table-stack" role="table">
+      <caption class="sr-only">Past settle-ups, newest first</caption>
+      <thead><tr role="row">
+        <th scope="col" role="columnheader">Settled</th>
+        <th scope="col" role="columnheader">Period</th>
+        <th scope="col" role="columnheader" class="cell-num">Money in</th>
+        <th scope="col" role="columnheader" class="cell-num">Upfront costs</th>
+        <th scope="col" role="columnheader" class="cell-num">Profit shared</th>
+        <th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>
+      </tr></thead>
+      <tbody>
+        {% for settlement in settlements %}
+        <tr role="row">
+          <td role="cell" class="cell-title num">{{ settlement.settled_at | local_datetime }}</td>
+          <td role="cell" data-label="Period" class="num">{{ settlement.period_start | date }} to {{ settlement.period_end | date }}</td>
+          <td role="cell" data-label="Money in" class="cell-num">{{ settlement.money_in | money }}</td>
+          <td role="cell" data-label="Upfront costs" class="cell-num">{{ settlement.upfront_total | money }}</td>
+          <td role="cell" data-label="Profit shared" class="cell-num {{ 'loss' if settlement.profit_to_share < 0 }}">{{ settlement.profit_to_share | money }}</td>
+          <td role="cell" class="cell-actions"><a class="btn btn-ghost btn-small" href="{{ url_for('split.history_detail', settlement_id=settlement.id) }}">View<span class="sr-only"> the settle-up on {{ settlement.settled_at | local_datetime }}</span></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <form method="post" action="{{ url_for('split.undo') }}" data-confirm="Undo the last settle-up? Its rows go back in the current period, and shares go back to what they were then." data-confirm-label="Undo settle-up">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-secondary" type="submit">Undo last settle-up</button>
+  </form>
+</div>
+{% else %}
+  <div class="panel">{{ empty_state("No settle-ups yet", "When you settle up, the figures are kept here.", url_for('split.overview'), "Back to the split") }}</div>
+{% endif %}
+{% endblock %}

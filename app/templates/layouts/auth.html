@@ -1,0 +1,12 @@
+{% extends "layouts/public.html" %}
+{% from "components/ui.html" import toasts %}
+{% set hide_auth_links = true %}
+{% block main %}
+<div class="auth-shell">
+  {{ toasts() }}
+  <div class="panel">
+    {% block content %}{% endblock %}
+  </div>
+  {% block below %}{% endblock %}
+</div>
+{% endblock %}

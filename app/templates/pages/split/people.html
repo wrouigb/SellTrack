@@ -1,0 +1,95 @@
+{% extends "pages/split/_layout.html" %}
+{% from "components/forms.html" import field, money_field, error_summary %}
+{% set tab = 'people' %}
+{% block title %}People - SellTrack{% endblock %}
+{% block tab_content %}
+<div class="stack">
+  {% if active %}
+  <section aria-labelledby="shares-heading">
+    <h2 id="shares-heading" class="mb-3">Who shares the profit</h2>
+    {% if row_errors %}
+    <div class="error-summary" role="alert" tabindex="-1">
+      <h2>{{ 'There is a problem' if row_errors | length == 1 else 'There are ' ~ row_errors | length ~ ' problems' }}</h2>
+      <ul>{% for name, message in row_errors.items() %}<li>{% if name.startswith('name_') or name.startswith('share_') %}<a href="#{{ name }}">{{ message }}</a>{% else %}{{ message }}{% endif %}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+    <form method="post" action="{{ url_for('split.save_people') }}" id="shares-form" novalidate x-data="shareTotal" x-on:input="refresh">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <ul class="people-rows">
+        {% for person in active %}
+        {% set name_field = 'name_' ~ person.id %}
+        {% set share_field = 'share_' ~ person.id %}
+        <li class="person-row">
+          <div class="field">
+            <label class="label" for="{{ name_field }}">Name</label>
+            <input class="input" id="{{ name_field }}" name="{{ name_field }}" autocomplete="off"
+                   value="{{ request.form.get(name_field, person.name) }}"
+                   {% if row_errors.get(name_field) %}aria-invalid="true" aria-describedby="{{ name_field }}-error"{% endif %}>
+            {% if row_errors.get(name_field) %}<span class="field-error" id="{{ name_field }}-error">{{ row_errors[name_field] }}</span>{% endif %}
+          </div>
+          <div class="field">
+            <label class="label" for="{{ share_field }}">Share (%)</label>
+            <input class="input input-money" id="{{ share_field }}" name="{{ share_field }}" inputmode="decimal" autocomplete="off" data-share
+                   value="{{ request.form.get(share_field, person.share_pct) }}"
+                   {% if row_errors.get(share_field) %}aria-invalid="true" aria-describedby="{{ share_field }}-error"{% endif %}>
+            {% if row_errors.get(share_field) %}<span class="field-error" id="{{ share_field }}-error">{{ row_errors[share_field] }}</span>{% endif %}
+          </div>
+          <div class="person-actions">
+            {% if person.receives_money_default %}
+              <span class="badge badge-info">Usually receives the money</span>
+            {% else %}
+              <button class="btn btn-ghost btn-small" type="submit" formaction="{{ url_for('split.usual_receiver', partner_id=person.id) }}">Set as usual receiver<span class="sr-only">: {{ person.name }}</span></button>
+            {% endif %}
+            <button class="btn btn-ghost btn-small" type="submit" formaction="{{ url_for('split.archive_person', partner_id=person.id) }}" data-confirm="Archive {{ person.name }}? They'll keep their history and their share goes to 0%." data-confirm-label="Archive">Archive<span class="sr-only"> {{ person.name }}</span></button>
+            <button class="btn btn-ghost btn-small" type="submit" formaction="{{ url_for('split.delete_person', partner_id=person.id) }}" data-confirm="Remove {{ person.name }}? This only works if they have no history." data-confirm-label="Remove">Remove<span class="sr-only"> {{ person.name }}</span></button>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="share-total" role="status" x-cloak x-show="total">
+        <span class="soft">Shares total</span> <strong class="num" x-text="total"></strong>
+        <span class="badge badge-warning" x-show="isOff">Needs to total 100%</span>
+      </p>
+      <div class="button-row mt-4">
+        <button class="btn btn-primary" type="submit">Save names and shares</button>
+        <button class="btn btn-secondary" type="submit" formaction="{{ url_for('split.even_shares') }}">Split evenly</button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  <details class="panel add-panel" {% if form.errors or not active %}open{% endif %}>
+    <summary class="add-summary">Add a person</summary>
+    <div class="mt-4">
+      {{ error_summary(form) }}
+      <p class="soft mb-4">People are just names, not separate logins. Everyone shares this account.</p>
+      <form method="post" action="{{ url_for('split.people') }}" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field-row">
+          {{ field(form.name, attrs={'autocomplete': 'off'}) }}
+          {{ money_field(form.share_pct, hint="Like 50 or 33.33.") }}
+        </div>
+        <label class="check mt-3">{{ form.usually_receives_money() }} {{ form.usually_receives_money.label.text }}</label>
+        <button class="btn btn-primary mt-4" type="submit">Add person</button>
+      </form>
+    </div>
+  </details>
+
+  {% if archived %}
+  <section aria-labelledby="archived-heading">
+    <h2 id="archived-heading" class="mb-3">Archived</h2>
+    <ul class="ledger panel">
+      {% for person in archived %}
+      <li>
+        <span class="break-words min-w-0">{{ person.name }}</span>
+        <form method="post" action="{{ url_for('split.restore_person', partner_id=person.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-secondary btn-small" type="submit">Restore<span class="sr-only"> {{ person.name }}</span></button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

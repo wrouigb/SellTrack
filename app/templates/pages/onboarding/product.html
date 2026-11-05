@@ -1,0 +1,17 @@
+{% extends "pages/onboarding/_layout.html" %}
+{% from "components/forms.html" import field, money_field, error_summary %}
+{% block title %}Your first product - SellTrack{% endblock %}
+{% block content %}
+<h1>What do you sell?</h1>
+<p class="soft mt-1 mb-5">Add one product now. You can add the rest later.</p>
+{{ error_summary(form) }}
+<form method="post" class="panel" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {{ field(form.name, attrs={'autocomplete': 'off'}) }}
+  <div class="field-row">
+    {{ money_field(form.cost, hint="What one item costs you.") }}
+    {{ money_field(form.sell_price, hint="Optional. Fills in the price when you add a sale.") }}
+  </div>
+  <button class="btn btn-primary mt-5" type="submit">Add product</button>
+</form>
+{% endblock %}

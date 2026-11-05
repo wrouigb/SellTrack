@@ -1,14 +1,16 @@
-{% extends "layouts/base.html" %}
-{% from "_forms.html" import field %}
+{% extends "layouts/auth.html" %}
+{% from "components/forms.html" import field, error_summary %}
 {% block title %}Create an account - SellTrack{% endblock %}
 {% block content %}
 <h1>Create an account</h1>
+<p class="soft mt-1 mb-5">No email needed, just a username and password.</p>
+{{ error_summary(form) }}
 <form method="post" novalidate>
-  {{ form.hidden_tag() }}
-  {{ field(form.username, "username") }}
-  {{ field(form.password, "new-password") }}
-  {{ field(form.confirm, "new-password") }}
-  <button type="submit">Create account</button>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {{ field(form.username, hint="3 to 30 letters, numbers, dots, dashes or underscores.", attrs={'autocomplete': 'username'}) }}
+  {{ field(form.password, hint="At least 8 characters. A few unrelated words work well.", attrs={'autocomplete': 'new-password'}) }}
+  {{ field(form.confirm, attrs={'autocomplete': 'new-password'}) }}
+  <button class="btn btn-primary w-full mt-5" type="submit">Create account</button>
 </form>
-<p>Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a>.</p>
 {% endblock %}
+{% block below %}<p class="soft text-center">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>{% endblock %}

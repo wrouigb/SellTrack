@@ -15,7 +15,7 @@ goes into it: everything in the current period, which is every row with ``settle
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -170,6 +170,39 @@ def update_person(
     _warn_if_shares_off(user_id)
     db.session.commit()
     return person
+
+
+def update_people(user_id: int, changes: Mapping[int, tuple[str, str]]) -> None:
+    """Change several people's names and shares together, as one save.
+
+    ``changes`` maps a person's ID to their new name and share. Errors are keyed
+    ``name_<id>`` and ``share_<id>``, and nothing is saved unless all of it is right.
+    """
+    errors = Errors()
+    cleaned: dict[int, tuple[str | None, Decimal | None]] = {}
+    for partner_id, (name, share_pct) in changes.items():
+        cleaned[partner_id] = (
+            clean_text(
+                errors,
+                f"name_{partner_id}",
+                name,
+                max_length=NAME_MAX,
+                required=True,
+                label="The name",
+            ),
+            clean_percent(errors, f"share_{partner_id}", share_pct),
+        )
+    errors.raise_if_any()
+
+    _lock_account(user_id)
+    for partner_id, (new_name, new_share) in cleaned.items():
+        person = get_person(user_id, partner_id)
+        if person.archived_at is None:
+            person.name = checked(new_name)
+            person.share_pct = checked(new_share)
+    _flush_names("Two people can't have the same name.")
+    _warn_if_shares_off(user_id)
+    db.session.commit()
 
 
 def set_even_shares(user_id: int) -> Sequence[Partner]:
@@ -700,7 +733,7 @@ def undo_last_settlement(user_id: int, *, actor_id: int | None = None) -> UndoRe
     )
     db.session.delete(settlement)
     notify(
-        user_id, Kind.SETTLEMENT_UNDONE, "Settle-up undone", _undo_message(restored), url=_SPLIT_URL
+        user_id, Kind.SETTLEMENT_UNDONE, "Settle-up undone", undo_message(restored), url=_SPLIT_URL
     )
     db.session.commit()
     return UndoResult(
@@ -748,7 +781,8 @@ def _restore_shares(user_id: int, settlement: Settlement) -> UndoResult:
     )
 
 
-def _undo_message(restored: UndoResult) -> str:
+def undo_message(restored: UndoResult) -> str:
+    """What an undo changed, in words, for a notification or a message on the page."""
     parts = ["The rows are back in the current period."]
     if restored.shares_restored:
         parts.append("Shares are back to what they were at that settle-up.")

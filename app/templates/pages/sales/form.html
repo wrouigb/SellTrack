@@ -1,0 +1,28 @@
+{% extends "layouts/app.html" %}
+{% from "components/forms.html" import error_summary %}
+{% from "components/ui.html" import empty_state %}
+{% from "pages/sales/_form_fields.html" import sale_fields %}
+{% block title %}{{ 'Edit sale' if sale else 'Add sale' }} - SellTrack{% endblock %}
+{% block page_class %}page-narrow{% endblock %}
+{% block content %}
+<h1 class="mb-5">{{ 'Edit sale' if sale else 'Add sale' }}</h1>
+{% if not sale and not has_products %}
+  <div class="panel">
+    {{ empty_state("Add a product first", "A sale needs a product, so that SellTrack knows its cost.", url_for('products.list_products'), "Add a product") }}
+  </div>
+{% else %}
+  {{ error_summary(form) }}
+  {% if locked %}
+    <p class="notice mb-5">This sale is part of a settle-up, so its quantity, amount and who received the money are locked. <a href="{{ url_for('split.history') }}">Undo the settle-up</a> to change them.</p>
+  {% endif %}
+  <form method="post" class="panel" novalidate x-data="saleForm" {% if sale %}data-locked-cost="{{ sale.cost_each }}"{% endif %}>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ sale_fields(form, sale=sale, locked=locked, show_receiver=form.received_by_partner_id.choices | length > 1) }}
+    <div class="button-row mt-5">
+      <button class="btn btn-primary" type="submit">{{ 'Save changes' if sale else 'Save sale' }}</button>
+      {% if not sale %}<button class="btn btn-secondary" type="submit" name="add_another" value="1">Save and add another</button>{% endif %}
+      <a class="btn btn-ghost" href="{{ url_for('sales.list_sales') }}">Cancel</a>
+    </div>
+  </form>
+{% endif %}
+{% endblock %}

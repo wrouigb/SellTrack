@@ -1,0 +1,32 @@
+{% extends "pages/onboarding/_layout.html" %}
+{% from "components/forms.html" import field, money_field, error_summary %}
+{% block title %}Who shares the profit? - SellTrack{% endblock %}
+{% block content %}
+<h1>Who shares the profit?</h1>
+<p class="soft mt-1 mb-5">Add each person with their percentage. They don't need their own login. Selling on your own? Skip this step.</p>
+{{ error_summary(form) }}
+{% if people %}
+  {% set total = people | map(attribute='share_pct') | sum %}
+  <ul class="ledger panel mb-3">
+    {% for person in people %}<li><span class="break-words min-w-0">{{ person.name }}</span> <span class="num">{{ person.share_pct }}%</span></li>{% endfor %}
+  </ul>
+  <p class="mb-5">
+    <span class="soft">Shares total</span> <strong class="num">{{ total }}%</strong>
+    {% if total != 100 %}<span class="badge badge-warning">Needs to total 100%</span>{% endif %}
+  </p>
+{% endif %}
+<form method="post" class="panel" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="field-row">
+    {{ field(form.name, attrs={'autocomplete': 'off'}) }}
+    {{ money_field(form.share_pct, hint="Like 50 or 33.33.") }}
+  </div>
+  <div class="button-row mt-4">
+    <button class="btn btn-secondary" type="submit">Add person</button>
+    {% if people | length > 1 %}
+    <button class="btn btn-ghost" type="submit" formaction="{{ url_for('onboarding.even') }}">Split evenly</button>
+    {% endif %}
+  </div>
+</form>
+<a class="btn btn-primary mt-5" href="{{ url_for('onboarding.product') }}">{{ 'Continue' if people else 'Skip this step' }}</a>
+{% endblock %}

@@ -1,16 +1,17 @@
-{% extends "layouts/base.html" %}
-{% from "_forms.html" import field %}
+{% extends "layouts/auth.html" %}
+{% from "components/forms.html" import field, error_summary %}
 {% block title %}Recover your account - SellTrack{% endblock %}
 {% block content %}
 <h1>Recover your account</h1>
-<p>Enter one of the recovery codes you saved when you signed up. Each code works once.</p>
+<p class="soft mt-1 mb-5">Enter one of the recovery codes you saved when you signed up. Each code works once.</p>
+{{ error_summary(form) }}
 <form method="post" novalidate>
-  {{ form.hidden_tag() }}
-  {{ field(form.username, "username") }}
-  {{ field(form.code, "off") }}
-  {{ field(form.new_password, "new-password") }}
-  {{ field(form.confirm, "new-password") }}
-  <button type="submit">Set new password</button>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {{ field(form.username, attrs={'autocomplete': 'username'}) }}
+  {{ field(form.code, hint="Looks like ABCD-1234-EFGH-5678.", attrs={'autocomplete': 'off'}) }}
+  {{ field(form.new_password, hint="At least 8 characters.", attrs={'autocomplete': 'new-password'}) }}
+  {{ field(form.confirm, attrs={'autocomplete': 'new-password'}) }}
+  <button class="btn btn-primary w-full mt-5" type="submit">Set new password</button>
 </form>
-<p><a href="{{ url_for('auth.login') }}">Back to log in</a></p>
 {% endblock %}
+{% block below %}<p class="soft text-center"><a href="{{ url_for('auth.login') }}">Back to log in</a></p>{% endblock %}

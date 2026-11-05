@@ -1,6 +1,36 @@
-{% extends "layouts/base.html" %}
+{% extends "layouts/public.html" %}
+{% block title %}SellTrack: track sales and split the profit{% endblock %}
 {% block content %}
-<h1>SellTrack</h1>
-<p>Track what you sell, see what you make, and split the profit fairly.</p>
-<p><a href="{{ url_for('auth.login') }}">Log in</a> or <a href="{{ url_for('auth.register') }}">create an account</a>.</p>
+<section class="hero">
+  <div>
+    <h1>Know what you made, and who owes whom.</h1>
+    <p class="hero-lead">SellTrack records what you sell and what you spend, then tells you and your partners exactly how to square up.</p>
+    <div class="button-row mt-8">
+      <a class="btn btn-primary" href="{{ url_for('auth.register') }}">Create an account</a>
+      <a class="btn btn-secondary" href="{{ url_for('auth.login') }}">Log in</a>
+    </div>
+  </div>
+  <div class="tag" role="img" aria-label="Example: Sam pays Alex $32.50">
+    <span class="tag-who">Sam pays Alex</span>
+    <span class="tag-amount">$32.50</span>
+    <span class="tag-lead mt-2 block">After $120.00 of sales and $45.00 of costs, split 50/50.</span>
+  </div>
+</section>
+<section class="steps" aria-label="How it works">
+  <div>
+    <span class="step-number" aria-hidden="true">1</span>
+    <h2>Record each sale</h2>
+    <p class="soft mt-1">Pick a product and SellTrack fills in the price and shows your profit as you type. Each sale keeps the cost it was made at.</p>
+  </div>
+  <div>
+    <span class="step-number" aria-hidden="true">2</span>
+    <h2>Log what you spend</h2>
+    <p class="soft mt-1">Stock, stall fees, packaging. Note who paid, and they get it back before any profit is shared.</p>
+  </div>
+  <div>
+    <span class="step-number" aria-hidden="true">3</span>
+    <h2>Settle up</h2>
+    <p class="soft mt-1">See who owes whom to the cent, pay in one go, and start the next period from $0. Past periods stay on record.</p>
+  </div>
+</section>
 {% endblock %}

@@ -22,6 +22,7 @@ instance/
 # Frontend build output
 node_modules/
 app/static/dist/
+app/static/src/.tailwind-output.css
 
 # Editors / OS
 .vscode/

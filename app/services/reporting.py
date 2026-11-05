@@ -123,16 +123,28 @@ def resolve_period(
     raise ValidationFailed(period="That isn't a period you can choose.")
 
 
-def previous_period(period: Period) -> Period | None:
-    """The period to compare against: the one just before, the same length or calendar unit."""
+def previous_period(period: Period, *, today: date | None = None) -> Period | None:
+    """The period to compare against: the one just before, the same length or calendar unit.
+
+    Pass ``today`` to compare fairly while a month or year is still going. Five days into November
+    is compared with the first five days of October, not all of it, which would look like a fall.
+    """
     if period.start is None or period.end is None:
         return None
+    in_progress = today is not None and period.start <= today < period.end
     if period.key in ("this_month", "last_month"):
         end = period.start - timedelta(days=1)
-        return Period("custom", end.replace(day=1), end)
+        start = end.replace(day=1)
+        if in_progress and today is not None:
+            end = start.replace(day=min(today.day, end.day))
+        return Period("custom", start, end)
     if period.key == "this_year":
         year = period.start.year - 1
-        return Period("custom", date(year, 1, 1), date(year, 12, 31))
+        end = date(year, 12, 31)
+        if in_progress and today is not None:
+            last_day = monthrange(year, today.month)[1]
+            end = date(year, today.month, min(today.day, last_day))
+        return Period("custom", date(year, 1, 1), end)
     length = period.end - period.start
     end = period.start - timedelta(days=1)
     return Period("custom", end - length, end)
@@ -164,10 +176,10 @@ def totals_for(user_id: int, period: Period) -> Totals:
     )
 
 
-def summary(user_id: int, period: Period) -> Summary:
+def summary(user_id: int, period: Period, *, today: date | None = None) -> Summary:
     """The dashboard tiles, each with its change against the previous period."""
     totals = totals_for(user_id, period)
-    before = previous_period(period)
+    before = previous_period(period, today=today)
     previous_totals = totals_for(user_id, before) if before else None
     changes: dict[str, Change] = {}
     if previous_totals is not None:
@@ -214,8 +226,14 @@ def by_product(user_id: int, period: Period, *, limit: int | None = None) -> lis
     ]
 
 
-def series(user_id: int, period: Period) -> tuple[Literal["day", "month"], list[SeriesPoint]]:
-    """Money in and profit over time, for the chart: by day, or by month over longer ranges."""
+def series(
+    user_id: int, period: Period, *, today: date | None = None
+) -> tuple[Literal["day", "month"], list[SeriesPoint]]:
+    """Money in and profit over time, for the chart: by day, or by month over longer ranges.
+
+    Pass ``today`` to stop at today, unless a sale is dated later, so the chart isn't mostly the
+    days that haven't happened yet.
+    """
     first: date | None = period.start
     last: date | None = period.end
     if first is None or last is None:
@@ -229,6 +247,11 @@ def series(user_id: int, period: Period) -> tuple[Literal["day", "month"], list[
         last = last or cast("date | None", bounds[1])
     if first is None or last is None:  # no sales at all
         return "day", []
+    if today is not None and first <= today < last:
+        latest_sale = db.session.scalar(
+            select(func.max(Sale.sale_date)).where(*_sale_conditions(user_id, period))
+        )
+        last = max(today, latest_sale) if latest_sale else today
 
     bucket: Literal["day", "month"] = "day" if (last - first).days <= _DAILY_LIMIT_DAYS else "month"
     # A literal rather than a bound parameter: Postgres has to see the SELECT and GROUP BY

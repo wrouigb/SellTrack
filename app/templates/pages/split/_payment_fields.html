@@ -1,0 +1,13 @@
+{% from "components/forms.html" import field, money_field %}
+{% macro payment_fields(form, locked=False) %}
+  {% set lock = {'disabled': true} if locked else {} %}
+  <div class="field-row">
+    {{ field(form.from_partner_id, attrs=lock) }}
+    {{ field(form.to_partner_id, attrs=lock) }}
+  </div>
+  <div class="field-row">
+    {{ money_field(form.amount, attrs=lock) }}
+    {{ field(form.paid_on) }}
+  </div>
+  {{ field(form.note, attrs={'autocomplete': 'off'}) }}
+{% endmacro %}

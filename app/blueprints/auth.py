@@ -39,7 +39,7 @@ def register() -> Response | str | tuple[str, int]:
             return render_template(
                 "pages/auth/recovery_codes.html",
                 codes=account.recovery_codes,
-                continue_url=url_for("dashboard.home"),
+                continue_url=url_for("onboarding.start"),
             )
     return render_template("pages/auth/register.html", form=form), _status(form)
 

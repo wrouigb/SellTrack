@@ -1,0 +1,13 @@
+{% extends "layouts/app.html" %}
+{% from "components/ui.html" import tabs %}
+{% block content %}
+<div class="page-head"><h1>Split</h1></div>
+{{ tabs([
+  ('overview', 'Overview', url_for('split.overview')),
+  ('costs', 'Upfront costs', url_for('split.costs')),
+  ('payments', 'Payments', url_for('split.payments')),
+  ('history', 'History', url_for('split.history')),
+  ('people', 'People', url_for('split.people')),
+], tab, 'Split sections') }}
+{% block tab_content %}{% endblock %}
+{% endblock %}
