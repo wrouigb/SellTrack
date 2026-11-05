@@ -1,0 +1,11 @@
+{% extends "layouts/base.html" %}
+{% block title %}Save your recovery codes - SellTrack{% endblock %}
+{% block content %}
+<h1>Save your recovery codes</h1>
+<p><strong>This is the only time you'll see these.</strong> SellTrack has no email, so if you
+forget your password one of these codes is the only way back in. Each code works once.</p>
+<ul>
+  {% for code in codes %}<li><code>{{ code }}</code></li>{% endfor %}
+</ul>
+<p><a href="{{ continue_url }}">I've saved them, continue</a></p>
+{% endblock %}

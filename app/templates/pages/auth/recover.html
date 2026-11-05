@@ -1,0 +1,16 @@
+{% extends "layouts/base.html" %}
+{% from "_forms.html" import field %}
+{% block title %}Recover your account - SellTrack{% endblock %}
+{% block content %}
+<h1>Recover your account</h1>
+<p>Enter one of the recovery codes you saved when you signed up. Each code works once.</p>
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  {{ field(form.username, "username") }}
+  {{ field(form.code, "off") }}
+  {{ field(form.new_password, "new-password") }}
+  {{ field(form.confirm, "new-password") }}
+  <button type="submit">Set new password</button>
+</form>
+<p><a href="{{ url_for('auth.login') }}">Back to log in</a></p>
+{% endblock %}

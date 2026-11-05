@@ -1,0 +1,14 @@
+{% extends "layouts/base.html" %}
+{% from "_forms.html" import field %}
+{% block title %}Create an account - SellTrack{% endblock %}
+{% block content %}
+<h1>Create an account</h1>
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  {{ field(form.username, "username") }}
+  {{ field(form.password, "new-password") }}
+  {{ field(form.confirm, "new-password") }}
+  <button type="submit">Create account</button>
+</form>
+<p>Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a>.</p>
+{% endblock %}

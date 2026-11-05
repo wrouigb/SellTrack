@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}SellTrack{% endblock %}</title>
+</head>
+<body>
+  {# Plain on purpose: the designed layout replaces this in phase 4. #}
+  <a href="#main">Skip to content</a>
+  {% block header %}{% endblock %}
+  <main id="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <p role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</p>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
