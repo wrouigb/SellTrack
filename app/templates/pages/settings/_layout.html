@@ -1,0 +1,12 @@
+{% extends "layouts/app.html" %}
+{% from "components/ui.html" import tabs %}
+{% block content %}
+<div class="page-head"><h1>Settings</h1></div>
+{{ tabs([
+  ('account', 'Account', url_for('settings.account')),
+  ('security', 'Security', url_for('settings.security')),
+  ('preferences', 'Preferences', url_for('settings.preferences')),
+  ('data', 'Your data', url_for('settings.data')),
+], tab, 'Settings sections') }}
+{% block tab_content %}{% endblock %}
+{% endblock %}

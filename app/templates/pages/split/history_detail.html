@@ -1,0 +1,71 @@
+{% extends "pages/split/_layout.html" %}
+{% from "components/ui.html" import square_tag %}
+{% set tab = 'history' %}
+{% set snapshot = settlement.snapshot %}
+{% block title %}Settle-up of {{ settlement.settled_at | date }} - SellTrack{% endblock %}
+{% block tab_content %}
+<div class="stack">
+  <div>
+    <p class="mb-2"><a href="{{ url_for('split.history') }}">All settle-ups</a></p>
+    <h2>Settled {{ settlement.settled_at | local_datetime }}</h2>
+    <p class="soft mt-1 num">Covers {{ settlement.period_start | date }} to {{ settlement.period_end | date }}</p>
+  </div>
+
+  <section aria-label="Totals" class="figures figures-3">
+    <div class="figure"><span class="figure-label">Money in</span><span class="figure-value">{{ settlement.money_in | money }}</span></div>
+    <div class="figure"><span class="figure-label">Upfront costs</span><span class="figure-value">{{ settlement.upfront_total | money }}</span></div>
+    <div class="figure"><span class="figure-label">Profit shared</span><span class="figure-value {{ 'loss' if settlement.profit_to_share < 0 }}">{{ settlement.profit_to_share | money }}</span></div>
+  </section>
+
+  <section aria-labelledby="paid-heading">
+    <h3 id="paid-heading" class="mb-3">Payments made</h3>
+    {% if snapshot.transfers %}
+      <div class="ledger-plain">
+        {% for transfer in snapshot.transfers %}
+          <p class="detail-row"><span>{{ transfer.from_name }} paid {{ transfer.to_name }}</span> <strong class="num">{{ transfer.amount | snapshot_money }}</strong></p>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="soft">Nothing was owed.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="breakdown-heading">
+    <h3 id="breakdown-heading" class="mb-3">How it was worked out</h3>
+    <div class="table-wrap">
+      <table class="table table-stack" role="table">
+        <caption class="sr-only">Each person's figures at this settle-up</caption>
+        <thead><tr role="row">
+          <th scope="col" role="columnheader">Person</th>
+          <th scope="col" role="columnheader" class="cell-num">Share</th>
+          <th scope="col" role="columnheader" class="cell-num">Gets back</th>
+          <th scope="col" role="columnheader" class="cell-num">Share of profit</th>
+          <th scope="col" role="columnheader" class="cell-num">Should end with</th>
+          <th scope="col" role="columnheader" class="cell-num">Holding</th>
+          <th scope="col" role="columnheader" class="cell-num">Balance</th>
+        </tr></thead>
+        <tbody>
+          {% for person in snapshot.people %}
+          <tr role="row">
+            <td role="cell" class="cell-title">{{ person.name }}</td>
+            <td role="cell" data-label="Share" class="cell-num">{{ person.share_pct }}%</td>
+            <td role="cell" data-label="Gets back" class="cell-num">{{ person.gets_back | snapshot_money }}</td>
+            <td role="cell" data-label="Share of profit" class="cell-num">{{ person.share_of_profit | snapshot_money }}</td>
+            <td role="cell" data-label="Should end with" class="cell-num">{{ person.should_end_with | snapshot_money }}</td>
+            <td role="cell" data-label="Holding" class="cell-num">{{ person.holding | snapshot_money }}</td>
+            <td role="cell" data-label="Balance" class="cell-num">{{ person.balance | snapshot_money }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if is_latest %}
+  <form method="post" action="{{ url_for('split.undo') }}" data-confirm="Undo this settle-up? Its rows go back in the current period, and shares go back to what they were then." data-confirm-label="Undo settle-up">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-secondary" type="submit">Undo this settle-up</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

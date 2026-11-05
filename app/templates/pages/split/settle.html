@@ -1,0 +1,32 @@
+{% extends "pages/split/_layout.html" %}
+{% from "components/ui.html" import owed_tag, square_tag %}
+{% set tab = 'overview' %}
+{% block title %}Settle up - SellTrack{% endblock %}
+{% block tab_content %}
+<div class="stack">
+  <section class="prose-block">
+    <h2>Settle up</h2>
+    <p>This records that everyone has paid what they owe, saves these figures to your history, and starts the tally again from $0.00. Sales, costs and payments so far will have their money locked. You can undo it afterwards if you need to.</p>
+  </section>
+  {% if not result.can_settle or not view.row_count %}
+    <p class="notice notice-warning">There's nothing you can settle yet. <a href="{{ url_for('split.overview') }}">Back to the split</a></p>
+  {% else %}
+    <section aria-labelledby="pay-heading">
+      <h3 id="pay-heading" class="mb-3">The payments to make</h3>
+      {% if result.transfers %}
+        <div class="tags-grid">
+          {% for transfer in result.transfers %}{{ owed_tag(transfer) }}{% endfor %}
+        </div>
+      {% else %}
+        {{ square_tag("Nothing to pay. Everyone is square") }}
+      {% endif %}
+    </section>
+    {% include "pages/split/_people_table.html" %}
+    <form method="post" class="button-row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" type="submit">Settle up</button>
+      <a class="btn btn-ghost" href="{{ url_for('split.overview') }}">Cancel</a>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

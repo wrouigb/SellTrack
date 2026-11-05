@@ -1,0 +1,98 @@
+{% extends "layouts/app.html" %}
+{% from "components/forms.html" import field %}
+{% from "components/ui.html" import empty_state, sort_header, pagination %}
+{% block title %}Sales - SellTrack{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Sales</h1>
+  <a class="btn btn-secondary" id="csv-link" href="{{ url_for('sales.export_csv') }}{{ '?' ~ request.query_string.decode() if request.query_string }}">Download CSV</a>
+</div>
+
+<form method="get" class="filters" role="search"
+      hx-get="{{ url_for('sales.list_sales') }}"
+      hx-trigger="input changed delay:300ms from:input[type=search], change"
+      hx-select="#sales-results" hx-target="#sales-results" hx-swap="outerHTML"
+      hx-select-oob="#result-count:innerHTML,#csv-link:outerHTML" hx-push-url="true" hx-indicator="#sales-results">
+  {{ field(filter_form.q, attrs={'autocomplete': 'off'}) }}
+  {{ field(filter_form.date_from) }}
+  {{ field(filter_form.date_to) }}
+  {{ field(filter_form.product) }}
+  {% if show_receiver %}{{ field(filter_form.received_by) }}{% endif %}
+  <button class="btn btn-secondary" type="submit">Filter</button>
+</form>
+
+<p id="result-count" class="sales-summary" role="status">
+  <span>{{ page.totals.count }} sale{{ '' if page.totals.count == 1 else 's' }}</span>
+  <span>{{ page.totals.money_in | money }} in</span>
+  <span class="{{ 'loss' if page.totals.profit < 0 }}">{{ page.totals.profit | money }} profit</span>
+</p>
+
+<div id="sales-results" class="refresh-dims"
+     hx-target="#sales-results" hx-select="#sales-results" hx-swap="outerHTML"
+     hx-select-oob="#result-count:innerHTML,#csv-link:outerHTML" hx-push-url="true" hx-indicator="#sales-results">
+  {% if page.items %}
+  <form method="post" action="{{ url_for('sales.bulk_delete') }}" x-data="bulkSelect" x-on:change="recount">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+    <div class="bulk-bar" x-show="selected" x-cloak>
+      <span x-text="countLabel"></span>
+      <button class="btn btn-danger btn-small" type="submit" data-confirm="Delete the selected sales? You can undo this straight after." data-confirm-label="Delete sales">Delete selected</button>
+    </div>
+    <div class="table-wrap">
+      <table class="table table-stack" role="table">
+        <caption class="sr-only">Your sales. Column headings sort the table.</caption>
+        <thead>
+          <tr role="row">
+            <th scope="col" role="columnheader" class="w-8">
+              <label class="row-check" x-cloak><span class="sr-only">Select all on this page</span><input type="checkbox" data-all x-on:change="toggleAll"></label>
+            </th>
+            {{ sort_header("Date", "date", filters.sort, filters.descending) }}
+            {{ sort_header("Product", "product", filters.sort, filters.descending) }}
+            {{ sort_header("Customer", "customer", filters.sort, filters.descending) }}
+            {{ sort_header("Qty", "quantity", filters.sort, filters.descending, numeric=True) }}
+            {{ sort_header("Paid", "price", filters.sort, filters.descending, numeric=True) }}
+            {{ sort_header("Profit", "profit", filters.sort, filters.descending, numeric=True) }}
+            {% if show_receiver %}<th scope="col" role="columnheader">Received by</th>{% endif %}
+            <th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sale in page.items %}
+          <tr role="row" class="{{ 'row-settled' if sale.settlement_id }}">
+            <td role="cell" class="cell-select">
+              {% if not sale.settlement_id %}
+              <label class="row-check"><span class="sr-only">Select the {{ sale.product_name }} sale on {{ sale.sale_date | date }}</span><input type="checkbox" name="ids" value="{{ sale.id }}" data-row></label>
+              {% endif %}
+            </td>
+            <td role="cell" data-label="Date" class="num whitespace-nowrap">{{ sale.sale_date | date }}</td>
+            <td role="cell" class="cell-title">{{ sale.product_name }}</td>
+            <td role="cell" data-label="Customer">{{ sale.customer_name or '' }}</td>
+            <td role="cell" data-label="Qty" class="cell-num">{{ sale.quantity }}</td>
+            <td role="cell" data-label="Paid" class="cell-num">{{ sale.price_paid | money }}</td>
+            <td role="cell" data-label="Profit" class="cell-num {{ 'loss' if sale.profit < 0 }}">{{ sale.profit | money }}</td>
+            {% if show_receiver %}<td role="cell" data-label="Received by">{{ people_names.get(sale.received_by_partner_id, '') }}</td>{% endif %}
+            <td role="cell" class="cell-actions">
+              <span class="button-row flex-nowrap justify-end">
+                {% if sale.settlement_id %}<span class="badge badge-neutral">Settled</span>{% endif %}
+                <a class="btn btn-ghost btn-small" href="{{ url_for('sales.edit_sale', sale_id=sale.id) }}">Edit<span class="sr-only"> the {{ sale.product_name }} sale on {{ sale.sale_date | date }}</span></a>
+                {% if not sale.settlement_id %}
+                <button class="btn btn-ghost btn-small" type="submit" formaction="{{ url_for('sales.delete_sale', sale_id=sale.id) }}" data-confirm="Delete this {{ sale.product_name }} sale? You can undo this straight after." data-confirm-label="Delete sale">Delete<span class="sr-only"> the {{ sale.product_name }} sale on {{ sale.sale_date | date }}</span></button>
+                {% endif %}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+  {{ pagination(page) }}
+  {% elif filtered %}
+    <div class="panel">{{ empty_state("No sales match", "Try a different search, or clear the filters.", url_for('sales.list_sales'), "Clear filters") }}</div>
+  {% elif has_products %}
+    <div class="panel">{{ empty_state("No sales yet", "Add your first sale, and it'll show up here.", url_for('sales.new_sale'), "Add sale") }}</div>
+  {% else %}
+    <div class="panel">{{ empty_state("No sales yet", "Start by adding a product, so that SellTrack knows what it costs you.", url_for('products.list_products'), "Add a product") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,111 @@
+{# Building blocks shared by every page. #}
+
+{% macro icon(name) -%}
+<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+  {%- if name == 'home' %}<path d="M4 11.5 12 4l8 7.500M6.500 10v9.500h11V10"/>
+  {%- elif name == 'receipt' %}<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9.500 8h5M9.500 12h5"/>
+  {%- elif name == 'tag' %}<path d="M3.500 4.500h8l9 9-7.500 7.500-9.500-9z"/><circle cx="8" cy="9" r="1.500"/>
+  {%- elif name == 'split' %}<path d="M12 3v7M12 10c0 4-6 3-6 8M12 10c0 4 6 3 6 8M3.500 16 6 18.500 8.500 16M15.500 16l2.500 2.500 2.500-2.500"/>
+  {%- elif name == 'plus' %}<path d="M12 5v14M5 12h14"/>
+  {%- elif name == 'chevron' %}<path d="m7 10 5 5 5-5"/>
+  {%- elif name == 'up' %}<path d="M12 19V5M6 11l6-6 6 6"/>
+  {%- elif name == 'down' %}<path d="M12 5v14M6 13l6 6 6-6"/>
+  {%- endif %}
+</svg>
+{%- endmacro %}
+
+{% macro toasts() %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% set undo = session.pop('undo_sales', None) %}
+    {% if messages or undo %}
+    <div class="toasts">
+      {% for category, message in messages %}
+        <div class="toast notice {{ 'notice-danger' if category == 'error' else 'notice-success' if category == 'good' else '' }}"
+             role="{{ 'alert' if category == 'error' else 'status' }}" x-data="toast" x-show="shown">
+          <span>{{ message }}</span>
+          <span class="button-row">
+            {% if undo and loop.last %}
+            <form method="post" action="{{ url_for('sales.restore') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              {% for sale_id in undo %}<input type="hidden" name="ids" value="{{ sale_id }}">{% endfor %}
+              <button class="btn btn-secondary btn-small" type="submit">Undo</button>
+            </form>
+            {% endif %}
+            <button class="btn btn-ghost btn-small" type="button" x-on:click="dismiss" x-cloak>Dismiss</button>
+          </span>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+{% endmacro %}
+
+{% macro confirm_dialog() %}
+<dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">
+  <form method="dialog">
+    <h2 id="confirm-title" data-message></h2>
+    <div class="button-row mt-5 justify-end">
+      <button class="btn btn-secondary" value="cancel" type="submit">Cancel</button>
+      <button class="btn btn-primary" value="accept" type="submit" data-accept>Yes</button>
+    </div>
+  </form>
+</dialog>
+{% endmacro %}
+
+{% macro empty_state(title, message, action_url=None, action_label=None) %}
+<div class="empty">
+  <h2>{{ title }}</h2>
+  <p class="soft">{{ message }}</p>
+  {% if action_url %}<a class="btn btn-primary" href="{{ action_url }}">{{ action_label }}</a>{% endif %}
+</div>
+{% endmacro %}
+
+{# The swing tag. It only ever means that money is owed, or that nothing is. #}
+{% macro owed_tag(transfer) %}
+<div class="tag">
+  <span class="tag-who">{{ transfer.from_name }} pays {{ transfer.to_name }}</span>
+  <span class="tag-amount">{{ transfer.amount | money }}</span>
+</div>
+{% endmacro %}
+
+{% macro square_tag(message) %}
+<div class="tag tag-quiet">
+  <span class="tag-who">{{ message }}</span>
+</div>
+{% endmacro %}
+
+{# A column heading that sorts the table when clicked. #}
+{% macro sort_header(label, key, current, descending, numeric=False) %}
+  {% set active = current == key %}
+  <th scope="col" role="columnheader" {% if numeric %}class="cell-num"{% endif %}
+      {% if active %}aria-sort="{{ 'descending' if descending else 'ascending' }}"{% endif %}>
+    {% set target = url_with(sort=key, dir='asc' if active and descending else 'desc', page=None) %}
+    <a class="sort-link" id="sort-{{ key }}" href="{{ target }}" hx-get="{{ target }}">
+      {{ label }}{% if active %} {{ icon('down' if descending else 'up') }}{% endif %}
+    </a>
+  </th>
+{% endmacro %}
+
+{% macro pagination(page) %}
+  {% if page.pages > 1 %}
+  <nav class="pagination" aria-label="Pages">
+    {% if page.has_previous %}
+      {% set target = url_with(page=page.page - 1) %}
+      <a class="btn btn-secondary" id="page-previous" rel="prev" href="{{ target }}" hx-get="{{ target }}">Previous page</a>
+    {% else %}<span></span>{% endif %}
+    <span class="soft">Page {{ page.page }} of {{ page.pages }}</span>
+    {% if page.has_next %}
+      {% set target = url_with(page=page.page + 1) %}
+      <a class="btn btn-secondary" id="page-next" rel="next" href="{{ target }}" hx-get="{{ target }}">Next page</a>
+    {% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+{% endmacro %}
+
+{% macro tabs(items, current, label) %}
+<nav class="tabs" aria-label="{{ label }}">
+  {% for key, text, url in items %}
+    <a class="tab" href="{{ url }}" {% if key == current %}aria-current="page"{% endif %}>{{ text }}</a>
+  {% endfor %}
+</nav>
+{% endmacro %}

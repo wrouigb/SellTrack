@@ -1,0 +1,12 @@
+{% extends "pages/settings/_layout.html" %}
+{% block title %}Account - SellTrack{% endblock %}
+{% block tab_content %}
+<section class="panel page-narrow-block">
+  <h2 class="mb-3">Your account</h2>
+  <div class="detail-list">
+    <p class="detail-row"><span class="soft">Username</span> <strong class="break-all">{{ current_user.username }}</strong></p>
+    <p class="detail-row"><span class="soft">Member since</span> <span class="num">{{ current_user.created_at | date }}</span></p>
+  </div>
+  <p class="soft mt-4">Everyone who logs in to this account sees the same sales, products and split.</p>
+</section>
+{% endblock %}

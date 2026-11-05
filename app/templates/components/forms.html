@@ -1,0 +1,47 @@
+{# Form fields with labels, hints and errors wired together for screen readers. #}
+
+{% macro _control(item, hint, css, attrs) %}
+  {% set described = [] %}
+  {% if hint %}{% set _ = described.append(item.id ~ '-hint') %}{% endif %}
+  {% if item.errors %}{% set _ = described.append(item.id ~ '-error') %}{% endif %}
+  {% set final = dict(attrs) %}
+  {% if described %}{% set _ = final.update({'aria-describedby': described | join(' ')}) %}{% endif %}
+  {% if item.errors %}{% set _ = final.update({'aria-invalid': 'true'}) %}{% endif %}
+  {{ item(class_=css, **final) }}
+  {% if hint %}<span class="hint" id="{{ item.id }}-hint">{{ hint }}</span>{% endif %}
+  {% for error in item.errors %}<span class="field-error" id="{{ item.id }}-error">{{ error }}</span>{% endfor %}
+{% endmacro %}
+
+{% macro field(item, hint=None, attrs={}) %}
+<div class="field">
+  <label class="label" for="{{ item.id }}">{{ item.label.text }}</label>
+  {{ _control(item, hint, 'input', attrs) }}
+</div>
+{% endmacro %}
+
+{% macro money_field(item, hint=None, attrs={}) %}
+<div class="field">
+  <label class="label" for="{{ item.id }}">{{ item.label.text }}</label>
+  {% set final = dict(attrs) %}{% set _ = final.update({'inputmode': 'decimal', 'autocomplete': 'off'}) %}
+  {{ _control(item, hint, 'input input-money', final) }}
+</div>
+{% endmacro %}
+
+{# Lists every problem at the top of the form, each one linking to its field. #}
+{% macro error_summary(form) %}
+  {% set errors = form.errors %}
+  {% if errors %}
+  <div class="error-summary" role="alert" tabindex="-1">
+    <h2>{{ 'There is a problem' if errors | length == 1 else 'There are ' ~ errors | length ~ ' problems' }}</h2>
+    <ul>
+      {% for name, messages in errors.items() %}
+        {% if name and name in form %}
+          <li><a href="#{{ form[name].id }}">{{ form[name].label.text }}: {{ messages[0] }}</a></li>
+        {% else %}
+          <li>{{ messages[0] }}</li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+{% endmacro %}

@@ -49,5 +49,5 @@ class PasswordConfirmForm(FlaskForm):
     password = PasswordField("Current password", validators=[_REQUIRED])
 
 
-class ActionForm(FlaskForm):
-    """A form with no fields, for a button that changes something. Carries the CSRF token."""
+class DeleteAccountForm(FlaskForm):
+    password = PasswordField("Your password", validators=[_REQUIRED])

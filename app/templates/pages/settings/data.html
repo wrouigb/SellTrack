@@ -1,0 +1,22 @@
+{% extends "pages/settings/_layout.html" %}
+{% from "components/forms.html" import field, error_summary %}
+{% block title %}Your data - SellTrack{% endblock %}
+{% block tab_content %}
+<div class="stack page-narrow-block">
+  <section class="panel">
+    <h2>Download your sales</h2>
+    <p class="soft mt-1 mb-4">A CSV file you can open in any spreadsheet.</p>
+    <a class="btn btn-secondary" href="{{ url_for('sales.export_csv') }}">Download sales CSV</a>
+  </section>
+  <section class="panel">
+    <h2>Delete your account</h2>
+    <p class="mt-1 mb-4">This permanently deletes your account and all its sales, products, costs, payments and history, for everyone who shares this login. It can't be undone.</p>
+    {{ error_summary(form) }}
+    <form method="post" novalidate data-confirm="Delete this account and everything in it? This can't be undone." data-confirm-label="Delete account">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ field(form.password, attrs={'autocomplete': 'current-password'}) }}
+      <button class="btn btn-danger mt-4" type="submit">Delete my account</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

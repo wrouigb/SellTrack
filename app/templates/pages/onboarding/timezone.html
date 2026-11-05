@@ -1,0 +1,13 @@
+{% extends "pages/onboarding/_layout.html" %}
+{% from "components/forms.html" import field, error_summary %}
+{% block title %}Your time zone - SellTrack{% endblock %}
+{% block content %}
+<h1>Where are you?</h1>
+<p class="soft mt-1 mb-5">This decides what counts as today and this month.</p>
+{{ error_summary(form) }}
+<form method="post" class="panel" novalidate x-data="timezonePicker" data-chosen="{{ 'true' if chosen else 'false' }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {{ field(form.timezone) }}
+  <button class="btn btn-primary mt-5" type="submit">Continue</button>
+</form>
+{% endblock %}

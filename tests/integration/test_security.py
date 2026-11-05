@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from flask.sessions import SecureCookieSessionInterface
 from sqlalchemy import select
@@ -133,11 +135,13 @@ class TestHeaders:
         assert first != second
 
     def test_pages_have_no_inline_scripts_or_handlers(self, client):
-        for path in ("/", "/login", "/register", "/recover", "/no-such-page"):
+        for path in ("/", "/help", "/login", "/register", "/recover", "/no-such-page"):
             html = client.get(path).text
-            assert "<script" not in html
-            assert "onsubmit" not in html
-            assert "onclick" not in html
+            scripts = re.findall(r"<script\b[^>]*>", html)
+            assert scripts, "the page should load the app's script"
+            assert all(" src=" in script for script in scripts), scripts
+            assert not re.search(r"\son[a-z]+=", html), "no inline event handlers"
+            assert ' style="' not in html, "no inline styles"
 
     def test_logged_in_pages_are_not_cached(self, client):
         assert "Cache-Control" not in client.get("/login").headers

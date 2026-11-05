@@ -1,8 +1,17 @@
 {% extends "layouts/base.html" %}
 {% block title %}{{ title }} - SellTrack{% endblock %}
-{% block content %}
-<h1>{{ title }}</h1>
-<p>{{ message }}</p>
-<p><a href="/">Back to SellTrack</a></p>
-{% if reference %}<p><small>Reference: {{ reference }}</small></p>{% endif %}
+{% block body %}
+<header class="band">
+  <div class="band-inner">
+    <a class="brand" href="/"><img src="{{ asset('logo.svg') }}" alt="" width="32" height="32"> SellTrack</a>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+  <div class="page page-narrow">
+    <h1>{{ title }}</h1>
+    <p class="mt-3">{{ message }}</p>
+    <p class="mt-6"><a class="btn btn-primary" href="/">Back to SellTrack</a></p>
+    {% if reference %}<p class="soft mt-6 text-sm">If this keeps happening, quote this reference: <span class="num">{{ reference }}</span></p>{% endif %}
+  </div>
+</main>
 {% endblock %}

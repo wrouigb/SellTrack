@@ -1,21 +1,19 @@
 <!doctype html>
-<html lang="en-AU">
+<html lang="en-AU" data-theme="{{ current_theme() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}SellTrack{% endblock %}</title>
+  <meta name="description" content="Track what you sell, see what you make, and split the profit.">
+  {# Turns off every htmx feature that would need eval, inline styles or scripts, and stops it
+     keeping copies of pages in browser storage, where a shared computer could show them later. #}
+  <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"refreshOnHistoryMiss":true,"selfRequestsOnly":true}'>
+  <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ asset('app.css') }}">
+  <script src="{{ asset('app.js') }}" defer></script>
 </head>
 <body>
-  {# Plain on purpose: the designed layout replaces this in phase 4. #}
-  <a href="#main">Skip to content</a>
-  {% block header %}{% endblock %}
-  <main id="main">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <p role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</p>
-      {% endfor %}
-    {% endwith %}
-    {% block content %}{% endblock %}
-  </main>
+  <a class="skip-link" href="#main">Skip to content</a>
+  {% block body %}{% endblock %}
 </body>
 </html>

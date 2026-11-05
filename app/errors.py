@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import structlog
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, g, jsonify, render_template, request
 from flask_wtf.csrf import CSRFError
 from sqlalchemy.exc import DataError
 from werkzeug.exceptions import HTTPException, InternalServerError
@@ -70,6 +70,7 @@ def init_app(app: Flask) -> None:
 
 def _render(code: int, title: str, message: str) -> tuple[Response | str, int]:
     reference = current_request_id()
+    g.rendering_error = True
     if request.accept_mimetypes.best == "application/json":
         return jsonify(error=title, message=message, reference=reference), code
     # The template extends a layout that never touches the database, which may be what failed.

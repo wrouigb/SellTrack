@@ -134,6 +134,19 @@ class TestSummary:
         assert summary.previous_period.start == date(2026, 10, 1)
         assert summary.previous_period.end == date(2026, 10, 31)
 
+    def test_a_month_in_progress_is_compared_with_the_same_days_before(self, user_id):
+        """Five days of November against all of October would look like a fall every month."""
+        sale(user_id, "50.00", cost="0.00", day=date(2026, 11, 3))
+        sale(user_id, "20.00", cost="0.00", day=date(2026, 10, 5))
+        sale(user_id, "500.00", cost="0.00", day=date(2026, 10, 6))
+        db.session.commit()
+        today = date(2026, 11, 5)
+        period = resolve_period("this_month", today)
+        summary = reporting.summary(user_id, period, today=today)
+        assert summary.previous_period.end == date(2026, 10, 5)
+        assert summary.changes["money_in"].previous == Decimal("20.00")
+        assert summary.changes["money_in"].amount == Decimal("30.00")
+
     def test_no_percentage_against_zero(self, user_id):
         sale(user_id, "10.00", day=date(2026, 11, 5))
         db.session.commit()
@@ -199,6 +212,30 @@ class TestPeriods:
     def test_previous_of_a_month_is_the_whole_month_before(self):
         before = previous_period(resolve_period("this_month", date(2026, 3, 15)))
         assert (before.start, before.end) == (date(2026, 2, 1), date(2026, 2, 28))
+
+    @pytest.mark.parametrize(
+        ("today", "start", "end"),
+        [
+            (date(2026, 11, 5), date(2026, 10, 1), date(2026, 10, 5)),
+            # October has 31 days and September has 30.
+            (date(2026, 10, 31), date(2026, 9, 1), date(2026, 9, 30)),
+            # On the last day, the whole month has happened: all of the month before counts.
+            (date(2026, 3, 31), date(2026, 2, 1), date(2026, 2, 28)),
+        ],
+    )
+    def test_previous_of_a_month_in_progress(self, today, start, end):
+        before = previous_period(resolve_period("this_month", today), today=today)
+        assert (before.start, before.end) == (start, end)
+
+    def test_previous_of_a_year_in_progress(self):
+        today = date(2028, 2, 29)  # a leap day, with no match in the year before
+        before = previous_period(resolve_period("this_year", today), today=today)
+        assert (before.start, before.end) == (date(2027, 1, 1), date(2027, 2, 28))
+
+    def test_a_finished_month_is_compared_with_all_of_the_one_before(self):
+        today = date(2026, 3, 15)
+        before = previous_period(resolve_period("last_month", today), today=today)
+        assert (before.start, before.end) == (date(2026, 1, 1), date(2026, 1, 31))
 
     def test_previous_of_a_year(self):
         before = previous_period(resolve_period("this_year", date(2026, 3, 15)))
@@ -290,6 +327,24 @@ class TestSeries:
 
     def test_no_sales(self, user_id):
         assert reporting.series(user_id, ALL_TIME) == ("day", [])
+
+    def test_stops_at_today_so_the_chart_is_not_mostly_future_days(self, user_id):
+        sale(user_id, "1.00", day=date(2026, 11, 1))
+        db.session.commit()
+        today = date(2026, 11, 5)
+        _bucket, points = reporting.series(
+            user_id, resolve_period("this_month", today), today=today
+        )
+        assert points[-1].day == today
+
+    def test_still_shows_a_sale_dated_after_today(self, user_id):
+        sale(user_id, "1.00", day=date(2026, 11, 20))
+        db.session.commit()
+        today = date(2026, 11, 5)
+        _bucket, points = reporting.series(
+            user_id, resolve_period("this_month", today), today=today
+        )
+        assert points[-1].day == date(2026, 11, 20)
 
 
 def test_recent_sales_are_the_latest_five(user_id):

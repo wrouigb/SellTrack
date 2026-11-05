@@ -1,0 +1,34 @@
+{# Each person's figures, from the live calculation. #}
+<div class="table-wrap">
+  <table class="table table-stack" role="table">
+    <caption class="sr-only">What each person gets back, their share, and what they owe or are owed</caption>
+    <thead>
+      <tr role="row">
+        <th scope="col" role="columnheader">Person</th>
+        <th scope="col" role="columnheader" class="cell-num">Share</th>
+        <th scope="col" role="columnheader" class="cell-num">Gets back</th>
+        <th scope="col" role="columnheader" class="cell-num">Share of profit</th>
+        <th scope="col" role="columnheader" class="cell-num">Should end with</th>
+        <th scope="col" role="columnheader" class="cell-num">Holding</th>
+        <th scope="col" role="columnheader" class="cell-num">Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for person in result.people %}
+      <tr role="row">
+        <td role="cell" class="cell-title">{{ person.name }}</td>
+        <td role="cell" data-label="Share" class="cell-num">{{ person.share_pct }}%</td>
+        <td role="cell" data-label="Gets back" class="cell-num">{{ person.gets_back | money }}</td>
+        <td role="cell" data-label="Share of profit" class="cell-num {{ 'loss' if person.share_of_profit < 0 }}">{{ person.share_of_profit | money }}</td>
+        <td role="cell" data-label="Should end with" class="cell-num">{{ person.should_end_with | money }}</td>
+        <td role="cell" data-label="Holding" class="cell-num">{{ person.holding | money }}</td>
+        <td role="cell" data-label="Balance" class="cell-num">
+          {% if person.balance > 0 %}<span class="badge badge-success">Owed {{ person.balance | money }}</span>
+          {% elif person.balance < 0 %}<span class="badge badge-danger">Owes {{ (0 - person.balance) | money }}</span>
+          {% else %}<span class="badge badge-neutral">Square</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

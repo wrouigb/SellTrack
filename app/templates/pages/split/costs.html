@@ -1,0 +1,67 @@
+{% extends "pages/split/_layout.html" %}
+{% from "components/forms.html" import error_summary %}
+{% from "components/ui.html" import empty_state %}
+{% from "pages/split/_cost_fields.html" import cost_fields %}
+{% set tab = 'costs' %}
+{% block title %}Upfront costs - SellTrack{% endblock %}
+{% block tab_content %}
+<div class="stack">
+  {% if not has_people %}
+    <div class="panel">{{ empty_state("Add people first", "An upfront cost needs someone who paid it.", url_for('split.people'), "Add people") }}</div>
+  {% else %}
+    <details class="panel add-panel" {% if form.errors %}open{% endif %}>
+      <summary class="add-summary">Add an upfront cost</summary>
+      <div class="mt-4">
+        {{ error_summary(form) }}
+        <p class="soft mb-4">Log money someone spent for the business. They get it back before any profit is shared.</p>
+        <form method="post" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {{ cost_fields(form) }}
+          <button class="btn btn-primary mt-5" type="submit">Add cost</button>
+        </form>
+      </div>
+    </details>
+  {% endif %}
+
+  {% if costs %}
+  <div class="table-wrap">
+    <table class="table table-stack" role="table">
+      <caption class="sr-only">Upfront costs, newest first</caption>
+      <thead><tr role="row">
+        <th scope="col" role="columnheader">Date</th>
+        <th scope="col" role="columnheader">What for</th>
+        <th scope="col" role="columnheader">Category</th>
+        <th scope="col" role="columnheader">Paid by</th>
+        <th scope="col" role="columnheader" class="cell-num">Amount</th>
+        <th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>
+      </tr></thead>
+      <tbody>
+        {% for cost in costs %}
+        <tr role="row" class="{{ 'row-settled' if cost.settlement_id }}">
+          <td role="cell" data-label="Date" class="num whitespace-nowrap">{{ cost.cost_date | date }}</td>
+          <td role="cell" class="cell-title">{{ cost.description }}</td>
+          <td role="cell" data-label="Category">{{ category_label(cost.category.value) }}</td>
+          <td role="cell" data-label="Paid by">{{ names.get(cost.paid_by_partner_id, '') }}</td>
+          <td role="cell" data-label="Amount" class="cell-num">{{ cost.amount | money }}</td>
+          <td role="cell" class="cell-actions">
+            <span class="button-row flex-nowrap justify-end">
+              {% if cost.settlement_id %}<span class="badge badge-neutral">Settled</span>{% endif %}
+              <a class="btn btn-ghost btn-small" href="{{ url_for('split.edit_cost', cost_id=cost.id) }}">Edit<span class="sr-only"> {{ cost.description }}</span></a>
+              {% if not cost.settlement_id %}
+              <form method="post" action="{{ url_for('split.delete_cost', cost_id=cost.id) }}" data-confirm="Delete this cost, {{ cost.description }}?" data-confirm-label="Delete cost">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-ghost btn-small" type="submit">Delete<span class="sr-only"> {{ cost.description }}</span></button>
+              </form>
+              {% endif %}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif has_people %}
+    <div class="panel">{{ empty_state("No upfront costs yet", "Log the stock you buy and the fees you pay, so whoever paid gets it back.") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

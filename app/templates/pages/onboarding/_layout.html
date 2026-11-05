@@ -1,0 +1,21 @@
+{% extends "layouts/base.html" %}
+{% from "components/ui.html" import toasts, confirm_dialog %}
+{% block body %}
+<header class="band">
+  <div class="band-inner">
+    <span class="brand"><img src="{{ asset('logo.svg') }}" alt="" width="32" height="32"> SellTrack</span>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+  <div class="page page-narrow">
+    {{ toasts() }}
+    <p class="steps-progress">Step {{ step }} of 4</p>
+    {% block content %}{% endblock %}
+    <form method="post" action="{{ url_for('onboarding.finish') }}" class="mt-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-ghost" type="submit">Skip setup for now</button>
+    </form>
+  </div>
+</main>
+{{ confirm_dialog() }}
+{% endblock %}

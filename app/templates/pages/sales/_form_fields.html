@@ -1,0 +1,37 @@
+{# The fields of the sale form, used for adding, for editing and during onboarding. #}
+{% from "components/forms.html" import field, money_field, error_summary %}
+
+{% macro sale_fields(form, sale=None, locked=False, show_receiver=True) %}
+  {% set money_attrs = {'x-ref': 'price', 'x-on:input': 'priceChanged'} %}
+  {% if locked %}{% set _ = money_attrs.update({'disabled': true}) %}{% endif %}
+  {% set qty_attrs = {'x-ref': 'quantity', 'x-on:input': 'quantityChanged'} %}
+  {% if locked %}{% set _ = qty_attrs.update({'disabled': true}) %}{% endif %}
+
+  {% if sale %}
+    <div class="field">
+      <label class="label" for="sale-product">Product</label>
+      <input class="input" id="sale-product" value="{{ sale.product_name }}" disabled>
+      <span class="hint">A sale keeps its product and the cost it was made at, {{ sale.cost_each | money }} each.</span>
+    </div>
+  {% else %}
+    {{ field(form.product_id, attrs={'x-ref': 'product', 'x-on:change': 'productChanged'}) }}
+  {% endif %}
+  <div class="field-row field-row-3">
+    {{ field(form.sale_date) }}
+    {{ field(form.quantity, attrs=qty_attrs) }}
+    {{ money_field(form.price_paid, hint=("Fills in if the product has a selling price." if not sale else None), attrs=money_attrs) }}
+  </div>
+  <p class="profit-preview" x-show="hasPreview" x-cloak role="status">
+    <span class="soft">Profit on this sale</span>
+    <strong class="num" x-text="preview" x-bind:class="isLoss ? 'loss' : ''"></strong>
+    <span class="soft text-sm" x-show="hasCost">after <span class="num" x-text="costLabel"></span> cost each</span>
+  </p>
+  <div class="field-row">
+    {{ field(form.customer_name, attrs={'autocomplete': 'off'}) }}
+    {% if show_receiver %}
+      {% set receiver_attrs = {'disabled': true} if locked else {} %}
+      {{ field(form.received_by_partner_id, attrs=receiver_attrs) }}
+    {% endif %}
+  </div>
+  {{ field(form.notes) }}
+{% endmacro %}

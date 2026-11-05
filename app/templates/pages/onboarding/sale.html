@@ -1,0 +1,18 @@
+{% extends "pages/onboarding/_layout.html" %}
+{% from "components/forms.html" import error_summary %}
+{% from "pages/sales/_form_fields.html" import sale_fields %}
+{% block title %}Your first sale - SellTrack{% endblock %}
+{% block content %}
+<h1>Record your first sale</h1>
+{% if has_products %}
+  <p class="soft mt-1 mb-5">Pick the product, and the price fills in if it has a selling price.</p>
+  {{ error_summary(form) }}
+  <form method="post" class="panel" novalidate x-data="saleForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ sale_fields(form, show_receiver=form.received_by_partner_id.choices | length > 1) }}
+    <button class="btn btn-primary mt-5" type="submit">Save sale</button>
+  </form>
+{% else %}
+  <p class="soft mt-1 mb-5">You'll need a product before you can record a sale. <a href="{{ url_for('onboarding.product') }}">Add a product</a>, or finish setting up and add one later.</p>
+{% endif %}
+{% endblock %}

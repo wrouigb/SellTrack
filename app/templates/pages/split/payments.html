@@ -1,0 +1,66 @@
+{% extends "pages/split/_layout.html" %}
+{% from "components/forms.html" import error_summary %}
+{% from "components/ui.html" import empty_state %}
+{% from "pages/split/_payment_fields.html" import payment_fields %}
+{% set tab = 'payments' %}
+{% block title %}Payments - SellTrack{% endblock %}
+{% block tab_content %}
+<div class="stack">
+  {% if enough_people %}
+    <details class="panel add-panel" {% if form.errors or request.args.get('from') %}open{% endif %}>
+      <summary class="add-summary">Record a payment</summary>
+      <div class="mt-4">
+        {{ error_summary(form) }}
+        <p class="soft mb-4">When one person gives another money, record it here to reduce what they owe. To pay everything in one go, use Settle up instead.</p>
+        <form method="post" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {{ payment_fields(form) }}
+          <button class="btn btn-primary mt-5" type="submit">Record payment</button>
+        </form>
+      </div>
+    </details>
+  {% else %}
+    <div class="panel">{{ empty_state("Add a second person first", "A payment is money one person gives another.", url_for('split.people'), "Add people") }}</div>
+  {% endif %}
+
+  {% if payments %}
+  <div class="table-wrap">
+    <table class="table table-stack" role="table">
+      <caption class="sr-only">Payments, newest first</caption>
+      <thead><tr role="row">
+        <th scope="col" role="columnheader">Date</th>
+        <th scope="col" role="columnheader">Payment</th>
+        <th scope="col" role="columnheader">Note</th>
+        <th scope="col" role="columnheader" class="cell-num">Amount</th>
+        <th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>
+      </tr></thead>
+      <tbody>
+        {% for payment in payments %}
+        {% set label = names.get(payment.from_partner_id, '') ~ ' paid ' ~ names.get(payment.to_partner_id, '') %}
+        <tr role="row" class="{{ 'row-settled' if payment.settlement_id }}">
+          <td role="cell" data-label="Date" class="num whitespace-nowrap">{{ payment.paid_on | date }}</td>
+          <td role="cell" class="cell-title">{{ label }}</td>
+          <td role="cell" data-label="Note">{{ payment.note or '' }}</td>
+          <td role="cell" data-label="Amount" class="cell-num">{{ payment.amount | money }}</td>
+          <td role="cell" class="cell-actions">
+            <span class="button-row flex-nowrap justify-end">
+              {% if payment.settlement_id %}<span class="badge badge-neutral">Settled</span>{% endif %}
+              <a class="btn btn-ghost btn-small" href="{{ url_for('split.edit_payment', payment_id=payment.id) }}">Edit<span class="sr-only"> {{ label }} on {{ payment.paid_on | date }}</span></a>
+              {% if not payment.settlement_id %}
+              <form method="post" action="{{ url_for('split.delete_payment', payment_id=payment.id) }}" data-confirm="Delete this payment, {{ label }} {{ payment.amount | money }}?" data-confirm-label="Delete payment">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-ghost btn-small" type="submit">Delete<span class="sr-only"> {{ label }} on {{ payment.paid_on | date }}</span></button>
+              </form>
+              {% endif %}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif enough_people %}
+    <div class="panel">{{ empty_state("No payments yet", "Part-payments between people show up here.") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

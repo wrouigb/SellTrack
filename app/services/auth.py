@@ -12,12 +12,13 @@ import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from zoneinfo import available_timezones
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
-from app.models import RecoveryCode, SignIn, User, UserRole, UserStatus
+from app.models import RecoveryCode, SignIn, Theme, User, UserRole, UserStatus
 from app.security import passwords
 from app.services import audit
 from app.services.errors import (
@@ -43,6 +44,17 @@ _CODE_LENGTH = 16  # 80 bits of randomness
 _CODE_GROUP = 4
 _CODE_CONFUSABLES = str.maketrans({"O": "0", "I": "1", "L": "1"})
 _TEMP_PASSWORD_BYTES = 12
+_TIMEZONE_REGIONS = {
+    "Africa",
+    "America",
+    "Antarctica",
+    "Asia",
+    "Atlantic",
+    "Australia",
+    "Europe",
+    "Indian",
+    "Pacific",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -289,6 +301,45 @@ def delete_account(user: User, password: str) -> None:
         raise ValidationFailed(password="That isn't your current password.")
     audit.record("auth.account_deleted", target_type="user", target_id=user.id)
     db.session.delete(user)
+    db.session.commit()
+
+
+def timezone_names() -> list[str]:
+    """Time zones people would choose from, Australia's first."""
+    zones = (
+        zone
+        for zone in available_timezones()
+        if "/" in zone and zone.split("/", maxsplit=1)[0] in _TIMEZONE_REGIONS
+    )
+    return sorted(zones, key=lambda zone: (not zone.startswith("Australia/"), zone))
+
+
+def update_preferences(
+    user: User, *, timezone: str | None = None, theme: str | None = None
+) -> None:
+    """Change the time zone used for "today", and how the app looks."""
+    errors: dict[str, str] = {}
+    if timezone is not None and timezone not in available_timezones():
+        errors["timezone"] = "Choose a time zone from the list."
+    new_theme = None
+    if theme is not None:
+        try:
+            new_theme = Theme(theme)
+        except ValueError:
+            errors["theme"] = "Choose an appearance from the list."
+    if errors:
+        db.session.rollback()
+        raise ValidationFailed(errors)
+    if timezone is not None:
+        user.timezone = timezone
+    if new_theme is not None:
+        user.theme = new_theme
+    db.session.commit()
+
+
+def complete_onboarding(user: User) -> None:
+    if user.onboarded_at is None:
+        user.onboarded_at = datetime.now(UTC)
     db.session.commit()
 
 

@@ -1,0 +1,58 @@
+{% extends "pages/split/_layout.html" %}
+{% from "components/ui.html" import owed_tag, square_tag, empty_state %}
+{% set tab = 'overview' %}
+{% block title %}Split - SellTrack{% endblock %}
+{% block tab_content %}
+{% if not result.people %}
+  <div class="panel">{{ empty_state("Nobody in the split yet", "Add the people who share the profit, with each person's percentage.", url_for('split.people'), "Add people") }}</div>
+{% else %}
+<div class="stack">
+  {% for issue in result.issues %}
+    {% if issue == Issue.SHARES_NOT_100 %}
+      <p class="notice notice-warning">Shares total {{ result.shares_total }}%. They need to total exactly 100% before you can settle up. <a href="{{ url_for('split.people') }}">Fix shares</a></p>
+    {% elif issue == Issue.UNASSIGNED_SALES %}
+      <p class="notice notice-warning">{{ result.unassigned_money_in | money }} of sale money isn't with anyone yet. <a href="{{ url_for('split.people') }}">Choose who usually receives it</a></p>
+    {% endif %}
+  {% endfor %}
+
+  <section aria-labelledby="owed-heading">
+    <h2 id="owed-heading" class="mb-3">Who owes whom</h2>
+    {% if result.transfers %}
+      <div class="tags-grid">
+        {% for transfer in result.transfers %}{{ owed_tag(transfer) }}{% endfor %}
+      </div>
+    {% elif result.can_settle %}
+      {{ square_tag("Everyone is square") }}
+    {% else %}
+      {{ square_tag("Not worked out yet") }}
+    {% endif %}
+    <div class="button-row mt-4">
+      {% if result.can_settle and view.row_count %}<a class="btn btn-primary" href="{{ url_for('split.settle') }}">Settle up</a>{% endif %}
+      {% if result.people | length > 1 %}
+        {% if result.transfers %}
+          {% set first = result.transfers[0] %}
+          <a class="btn btn-secondary" href="{{ url_for('split.payments', **{'from': first.from_id, 'to': first.to_id, 'amount': first.amount}) }}">Record a payment</a>
+        {% else %}
+          <a class="btn btn-secondary" href="{{ url_for('split.payments') }}">Record a payment</a>
+        {% endif %}
+      {% endif %}
+    </div>
+  </section>
+
+  <section aria-label="Totals since the last settle-up" class="figures figures-3">
+    <div class="figure"><span class="figure-label">Money in</span><span class="figure-value">{{ result.money_in | money }}</span></div>
+    <div class="figure"><span class="figure-label">Upfront costs</span><span class="figure-value">{{ result.upfront_total | money }}</span></div>
+    <div class="figure"><span class="figure-label">Profit to share</span><span class="figure-value {{ 'loss' if result.profit_to_share < 0 }}">{{ result.profit_to_share | money }}</span></div>
+  </section>
+
+  <section aria-labelledby="people-heading">
+    <h2 id="people-heading" class="mb-3">How it's worked out</h2>
+    {% include "pages/split/_people_table.html" %}
+    <details class="more mt-2">
+      <summary>Why doesn't this match the profit on my sales?</summary>
+      <p class="prose-block mt-1">The split uses money actually spent. Profit on sales uses each product's cost per item. They differ when you buy stock before selling it: the split counts the whole purchase now, while profit on sales counts each item as it sells. <a href="{{ url_for('public.help_page') }}#split">How the split works</a></p>
+    </details>
+  </section>
+</div>
+{% endif %}
+{% endblock %}

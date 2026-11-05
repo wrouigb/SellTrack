@@ -1,0 +1,51 @@
+{% extends "layouts/public.html" %}
+{% block title %}Help - SellTrack{% endblock %}
+{% block content %}
+<article class="prose-block">
+  <h1>Help</h1>
+  <p>Short answers to the things people ask most.</p>
+
+  <h2 id="split">How the split works</h2>
+  <p>The split uses real money: what came in, minus what people spent. Everything since your last settle-up counts.</p>
+  <ol>
+    <li>Whoever paid an upfront cost gets it back first.</li>
+    <li>What's left is the profit, and it's shared by each person's percentage. Losses are shared the same way.</li>
+    <li>Each person's total is compared with the money they're holding. The difference is what they owe or are owed.</li>
+  </ol>
+
+  <h3>An example</h3>
+  <p>Alex and Sam split 50/50. Alex bought $35 of stock and Sam paid a $10 stall fee. They sold $120 in total: Sam took $80 at the stall and Alex took $40 online.</p>
+  <div class="table-wrap mt-3">
+    <table class="table table-stack" role="table">
+      <thead>
+        <tr role="row"><th scope="col" role="columnheader"><span class="sr-only">Step</span></th><th scope="col" role="columnheader" class="cell-num">Alex</th><th scope="col" role="columnheader" class="cell-num">Sam</th></tr>
+      </thead>
+      <tbody>
+        <tr role="row"><td role="cell" class="cell-title">Gets back</td><td role="cell" class="cell-num" data-label="Alex">$35.00</td><td role="cell" class="cell-num" data-label="Sam">$10.00</td></tr>
+        <tr role="row"><td role="cell" class="cell-title">Share of $75.00 profit</td><td role="cell" class="cell-num" data-label="Alex">$37.50</td><td role="cell" class="cell-num" data-label="Sam">$37.50</td></tr>
+        <tr role="row"><td role="cell" class="cell-title">Should end with</td><td role="cell" class="cell-num" data-label="Alex">$72.50</td><td role="cell" class="cell-num" data-label="Sam">$47.50</td></tr>
+        <tr role="row"><td role="cell" class="cell-title">Holding</td><td role="cell" class="cell-num" data-label="Alex">$40.00</td><td role="cell" class="cell-num" data-label="Sam">$80.00</td></tr>
+        <tr role="row"><td role="cell" class="cell-title">Balance</td><td role="cell" class="cell-num" data-label="Alex"><strong>Owed $32.50</strong></td><td role="cell" class="cell-num" data-label="Sam"><strong>Owes $32.50</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>So Sam pays Alex $32.50, and they're square.</p>
+
+  <h3>Why doesn't this match the profit on my sales?</h3>
+  <p>Profit on sales uses each product's cost per item. The split uses money actually spent. They differ when you buy stock before selling it: the split counts the whole purchase now, while profit on sales counts each item as it sells. Log the stock you buy as an upfront cost, so whoever paid gets it back.</p>
+
+  <h3>What does settling up do?</h3>
+  <p>It records that everyone has paid what they owe, saves the figures to your history, and starts the tally again from $0. Sales, costs and payments in that period have their money locked. If you settled by mistake, you can undo the most recent settle-up, which also puts shares back as they were.</p>
+
+  <h3>Can someone leave the split?</h3>
+  <p>Yes. Settle up first, then archive them under People. Their history stays.</p>
+
+  <h2 id="account">Your account</h2>
+  <h3>I forgot my password</h3>
+  <p>Use one of the recovery codes you saved when you signed up, on the <a href="{{ url_for('auth.recover') }}">account recovery page</a>. Each code works once. SellTrack has no email, so without a code the site's admin has to reset your password for you.</p>
+  <h3>We share one login. Is that all right?</h3>
+  <p>Yes. Everything in an account is shared by whoever logs in to it. People you add to the split are just names, not separate logins. Recent sign-ins are under Settings, and you can log out every device from there.</p>
+  <h3>How do I delete my account?</h3>
+  <p>Go to Settings, then Your data. Deleting your account removes all its sales, products and history, and can't be undone.</p>
+</article>
+{% endblock %}
