@@ -75,9 +75,9 @@ jobs:
 
   stack:
     # The production compose file with the real images, exactly as a deploy runs it.
-    name: Production stack, backup and restore
+    name: Production stack, deploys, backup and restore
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       IMAGE_REPO: selltrack-ci
       IMAGE_TAG: ci
@@ -104,6 +104,8 @@ jobs:
           build-args: REVISION=${{ github.sha }}
       - name: Check the running stack
         run: scripts/ci_step.sh tests/stack_check.sh
+      - name: Check the deploy script, and that a bad release goes back by itself
+        run: scripts/ci_step.sh tests/deploy_check.sh
       # Only our own images. There's nothing we could do about a finding in Postgres's or Redis's,
       # apart from waiting for their next release.
       - name: Look for known vulnerabilities in the images
