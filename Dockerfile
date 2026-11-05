@@ -6,7 +6,7 @@
 
 # The assets are the same on every platform, so they're only built once, natively. Under emulation
 # this would take minutes on the way to a Raspberry Pi image.
-FROM --platform=$BUILDPLATFORM node:22-slim AS assets
+FROM --platform=$BUILDPLATFORM node:26-slim AS assets
 WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci
